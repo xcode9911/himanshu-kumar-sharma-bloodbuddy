@@ -1,0 +1,26 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "This is the backend of Bloodbuddy.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node dist/app.js",
+    "build": "npx tsc",
+    "dev": "nodemon --watch src --ext ts --exec tsx src/app.ts",
+    "watch": "tsc -w",
+    "prepare": "npm run build"
+  },
+  "author": "Himanshu Sharma",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.5",
+    "nodemon": "^3.1.11",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
