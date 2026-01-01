@@ -8,8 +8,7 @@
     "start": "node dist/app.js",
     "build": "npx tsc",
     "dev": "nodemon --watch src --ext ts --exec tsx src/app.ts",
-    "watch": "tsc -w",
-    "prepare": "npm run build"
+    "watch": "tsc -w"
   },
   "author": "Himanshu Sharma",
   "license": "ISC",

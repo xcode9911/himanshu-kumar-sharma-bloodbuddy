@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { PrismaClient } from '../../generated/prisma/client.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import prisma from '../models/index.js';
@@ -382,7 +383,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
     const { fullName, password, phone, role, roleSpecificData } = registrationData;
 
     // Create user and role-specific record in a transaction
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: PrismaClient) => {
       const user = await tx.user.create({
         data: {
           FullName: fullName,
@@ -469,3 +470,61 @@ export const verifyOTP = async (req: Request, res: Response) => {
   }
 };
 
+// Login
+export const login = async (req: Request, res: Response) => {
+  const { email, password, role } = req.body;
+
+  if (!email || !password || !role) {
+    return res.status(400).json({ message: 'Email, password, and role are required' });
+  }
+
+  // Validate role
+  const validRoles = ['donor', 'gainer', 'organization'];
+  const userRole = role.toLowerCase();
+  if (!validRoles.includes(userRole)) {
+    return res.status(400).json({ 
+      message: 'Invalid role. Must be one of: donor, gainer, organization' 
+    });
+  }
+
+  try {
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { Email: email },
+      include: {
+        donor: true,
+        gainer: true,
+        organization: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    // Verify that the provided role matches the user's actual role
+    if (user.Role.toLowerCase() !== userRole) {
+      return res.status(403).json({ 
+        message: `Invalid role. This account is registered as ${user.Role}, not ${userRole}` 
+      });
+    }
+
+    // Verify password
+    const isPasswordValid = await comparePassword(password, user.Password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    const userData = buildUserPayload(user);
+    const token = generateToken(user);
+
+    return res.status(200).json({
+      message: 'Login successful',
+      token,
+      user: userData,
+    });
+  } catch (error: any) {
+    console.error('Error during login:', error);
+    return res.status(500).json({ message: 'Error during login', error: error.message });
+  }
+};
