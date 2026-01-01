@@ -6,6 +6,7 @@ import {
   login,
   requestPasswordReset,
   resetPassword,
+  updateProfile,
 } from '../controllers/userController.js';
 import catchAsync from '../utils/catchAsync.js';
 
@@ -17,6 +18,7 @@ router.post('/resend-otp', catchAsync(resendOTP));//US-2
 router.post('/login', catchAsync(login));//US-3
 router.post('/forgot-password', catchAsync(requestPasswordReset));//US-4
 router.post('/reset-password', catchAsync(resetPassword));//US-4
+router.put('/profile', catchAsync(updateProfile));//US-5
 
 export default router;
 
