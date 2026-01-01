@@ -1,0 +1,170 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  UserId           String        @id @default(uuid())
+  FullName         String
+  Email            String        @unique
+  Password         String
+  Phone            String?
+  Role             String
+  CreatedAt        DateTime      @default(now())
+  receivedMessages Chat[]        @relation("ReceivedMessages")
+  sentMessages     Chat[]        @relation("SentMessages")
+  donor            Donor?
+  gainer           Gainer?
+  organization     Organization?
+  otps             Otp[]
+}
+
+model Donor {
+  DonorId           Int      @id @default(autoincrement())
+  UserId            String   @unique
+  BloodType         String
+  EligibilityStatus String
+  LastDonationDate  DateTime?
+  Location          String
+  offers            DonationOffer[]
+  responses         DonorResponse[]
+  sharedLocations   Location[]
+  user              User            @relation(fields: [UserId], references: [UserId])
+}
+
+model Gainer {
+  GainerId Int      @id @default(autoincrement())
+  UserId   String   @unique
+  Address  String?
+  requests BloodRequest[]
+  receivedLocations Location[]
+  user     User           @relation(fields: [UserId], references: [UserId])
+  payments Payment[]
+}
+
+model Organization {
+  OrganizationId   Int      @id @default(autoincrement())
+  UserId           String   @unique
+  OrganizationName String
+  Location         String
+  Contact          String?
+  requests         BloodRequest[]
+  campaigns        Campaign[]
+  offers           DonationOffer[]
+  inventory        Inventory[]
+  user             User            @relation(fields: [UserId], references: [UserId])
+}
+
+model Inventory {
+  InventoryId    Int          @id @default(autoincrement())
+  OrganizationId Int
+  BloodType      String
+  Units          Int
+  organization   Organization @relation(fields: [OrganizationId], references: [OrganizationId])
+}
+
+model Campaign {
+  CampaignId     Int          @id @default(autoincrement())
+  OrganizationId Int
+  Title          String
+  Description    String?
+  Location       String
+  StartDate      DateTime
+  EndDate        DateTime
+  organization   Organization @relation(fields: [OrganizationId], references: [OrganizationId])
+}
+
+model BloodRequest {
+  RequestId      Int             @id @default(autoincrement())
+  GainerId       Int
+  OrganizationId Int
+  BloodType      String
+  Units          Int
+  Status         String
+  RequestDate    DateTime        @default(now())
+  gainer         Gainer          @relation(fields: [GainerId], references: [GainerId])
+  organization   Organization    @relation(fields: [OrganizationId], references: [OrganizationId])
+  donorResponses DonorResponse[]
+  payments       Payment[]
+}
+
+model DonationOffer {
+  OfferId        Int           @id @default(autoincrement())
+  DonorId        Int
+  OrganizationId Int
+  Status         String        // pending, accepted, rejected
+  DonationDate   DateTime?     // Date given by organization when accepted
+  CreatedAt      DateTime      @default(now())
+  donor          Donor         @relation(fields: [DonorId], references: [DonorId])
+  organization   Organization  @relation(fields: [OrganizationId], references: [OrganizationId])
+}
+
+model Chat {
+  ChatId     Int      @id @default(autoincrement())
+  SenderId   String
+  ReceiverId String
+  Message    String
+  Timestamp  DateTime @default(now())
+  Status     String?
+  receiver   User     @relation("ReceivedMessages", fields: [ReceiverId], references: [UserId])
+  sender     User     @relation("SentMessages", fields: [SenderId], references: [UserId])
+}
+
+model Payment {
+  PaymentId   Int          @id @default(autoincrement())
+  RequestId   Int
+  GainerId    Int
+  Amount      Float
+  Status      String
+  PaymentDate DateTime     @default(now())
+  gainer      Gainer       @relation(fields: [GainerId], references: [GainerId])
+  request     BloodRequest @relation(fields: [RequestId], references: [RequestId])
+}
+
+model Otp {
+  OtpId           Int       @id @default(autoincrement())
+  Email           String
+  Code            String
+  ExpiresAt       DateTime
+  IsUsed          Boolean   @default(false)
+  CreatedAt       DateTime  @default(now())
+  UserId          String?
+  RegistrationData Json?     // Store registration data temporarily until OTP is verified
+  user            User?     @relation(fields: [UserId], references: [UserId])
+}
+
+model DonorResponse {
+  ResponseId  Int           @id @default(autoincrement())
+  RequestId   Int
+  DonorId     Int
+  Status      String        // pending, accepted, rejected
+  CreatedAt   DateTime      @default(now())
+  donor       Donor         @relation(fields: [DonorId], references: [DonorId])
+  request     BloodRequest  @relation(fields: [RequestId], references: [RequestId])
+  location    Location?
+}
+
+model Location {
+  LocationId   Int           @id @default(autoincrement())
+  ResponseId   Int             @unique
+  DonorId      Int
+  GainerId     Int
+  Latitude     Float
+  Longitude    Float
+  IsActive     Boolean         @default(true)
+  CreatedAt    DateTime        @default(now())
+  UpdatedAt    DateTime        @updatedAt
+  donor        Donor           @relation(fields: [DonorId], references: [DonorId])
+  gainer       Gainer          @relation(fields: [GainerId], references: [GainerId])
+  response     DonorResponse   @relation(fields: [ResponseId], references: [ResponseId])
+}

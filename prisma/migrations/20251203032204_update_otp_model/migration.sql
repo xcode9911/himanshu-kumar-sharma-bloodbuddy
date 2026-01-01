@@ -1,0 +1,15 @@
+-- CreateTable
+CREATE TABLE "Otp" (
+    "OtpId" SERIAL NOT NULL,
+    "Email" TEXT NOT NULL,
+    "Code" TEXT NOT NULL,
+    "ExpiresAt" TIMESTAMP(3) NOT NULL,
+    "IsUsed" BOOLEAN NOT NULL DEFAULT false,
+    "CreatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "UserId" INTEGER,
+
+    CONSTRAINT "Otp_pkey" PRIMARY KEY ("OtpId")
+);
+
+-- AddForeignKey
+ALTER TABLE "Otp" ADD CONSTRAINT "Otp_UserId_fkey" FOREIGN KEY ("UserId") REFERENCES "User"("UserId") ON DELETE SET NULL ON UPDATE CASCADE;
