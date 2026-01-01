@@ -633,3 +633,138 @@ export const resetPassword = async (req: Request, res: Response) => {
   }
 };
 
+// Update User Profile
+export const updateProfile = async (req: Request, res: Response) => {
+  const { userId, fullName, phone, password, ...roleSpecificData } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ message: 'User ID is required' });
+  }
+
+  try {
+    // Find existing user
+    const existingUser = await prisma.user.findUnique({
+      where: { UserId: userId },
+      include: {
+        donor: true,
+        gainer: true,
+        organization: true,
+      },
+    });
+
+    if (!existingUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Prepare user update data
+    const userUpdateData: any = {};
+    if (fullName) userUpdateData.FullName = fullName;
+    if (phone !== undefined) userUpdateData.Phone = phone;
+    if (password) {
+      userUpdateData.Password = await hashPassword(password);
+    }
+
+    // Update in transaction
+    const result = await prisma.$transaction(async (tx: PrismaClient) => {
+      // Update user table
+      const updatedUser = await tx.user.update({
+        where: { UserId: userId },
+        data: userUpdateData,
+      });
+
+      let roleSpecificRecord: any = null;
+
+      // Update role-specific data
+      if (existingUser.Role === 'donor' && existingUser.donor) {
+        const donorUpdateData: any = {};
+        if (roleSpecificData.bloodType) donorUpdateData.BloodType = roleSpecificData.bloodType;
+        if (roleSpecificData.eligibilityStatus) donorUpdateData.EligibilityStatus = roleSpecificData.eligibilityStatus;
+        if (roleSpecificData.location) donorUpdateData.Location = roleSpecificData.location;
+        if (roleSpecificData.lastDonationDate) {
+          donorUpdateData.LastDonationDate = new Date(roleSpecificData.lastDonationDate);
+        }
+
+        if (Object.keys(donorUpdateData).length > 0) {
+          roleSpecificRecord = await tx.donor.update({
+            where: { DonorId: existingUser.donor.DonorId },
+            data: donorUpdateData,
+          });
+        }
+      } else if (existingUser.Role === 'gainer' && existingUser.gainer) {
+        const gainerUpdateData: any = {};
+        if (roleSpecificData.address !== undefined) gainerUpdateData.Address = roleSpecificData.address;
+
+        if (Object.keys(gainerUpdateData).length > 0) {
+          roleSpecificRecord = await tx.gainer.update({
+            where: { GainerId: existingUser.gainer.GainerId },
+            data: gainerUpdateData,
+          });
+        }
+      } else if (existingUser.Role === 'organization' && existingUser.organization) {
+        const orgUpdateData: any = {};
+        if (roleSpecificData.organizationName) orgUpdateData.OrganizationName = roleSpecificData.organizationName;
+        if (roleSpecificData.location) orgUpdateData.Location = roleSpecificData.location;
+        if (roleSpecificData.contact !== undefined) orgUpdateData.Contact = roleSpecificData.contact;
+
+        if (Object.keys(orgUpdateData).length > 0) {
+          roleSpecificRecord = await tx.organization.update({
+            where: { OrganizationId: existingUser.organization.OrganizationId },
+            data: orgUpdateData,
+          });
+        }
+      }
+
+      return { updatedUser, roleSpecificRecord };
+    });
+
+    // Fetch complete updated profile
+    const updatedProfile = await prisma.user.findUnique({
+      where: { UserId: userId },
+      include: {
+        donor: true,
+        gainer: true,
+        organization: true,
+      },
+    });
+
+    let userData: any = {
+      userId: updatedProfile!.UserId,
+      email: updatedProfile!.Email,
+      fullName: updatedProfile!.FullName,
+      role: updatedProfile!.Role,
+      phone: updatedProfile!.Phone,
+      createdAt: updatedProfile!.CreatedAt,
+    };
+
+    if (updatedProfile!.Role === 'donor' && updatedProfile!.donor) {
+      userData.donor = {
+        donorId: updatedProfile!.donor.DonorId,
+        bloodType: updatedProfile!.donor.BloodType,
+        eligibilityStatus: updatedProfile!.donor.EligibilityStatus,
+        location: updatedProfile!.donor.Location,
+        lastDonationDate: updatedProfile!.donor.LastDonationDate,
+      };
+    } else if (updatedProfile!.Role === 'gainer' && updatedProfile!.gainer) {
+      userData.gainer = {
+        gainerId: updatedProfile!.gainer.GainerId,
+        address: updatedProfile!.gainer.Address,
+      };
+    } else if (updatedProfile!.Role === 'organization' && updatedProfile!.organization) {
+      userData.organization = {
+        organizationId: updatedProfile!.organization.OrganizationId,
+        organizationName: updatedProfile!.organization.OrganizationName,
+        location: updatedProfile!.organization.Location,
+        contact: updatedProfile!.organization.Contact,
+      };
+    }
+
+    return res.status(200).json({
+      message: 'Profile updated successfully',
+      user: userData,
+    });
+  } catch (error: any) {
+    console.error('Error updating profile:', error);
+    return res.status(500).json({ message: 'Error updating profile', error: error.message });
+  }
+};
+
