@@ -528,3 +528,108 @@ export const login = async (req: Request, res: Response) => {
     return res.status(500).json({ message: 'Error during login', error: error.message });
   }
 };
+
+// Request Password Reset (send OTP)
+export const requestPasswordReset = async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: 'Email is required' });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { Email: email } });
+    if (!user) {
+      // To avoid user enumeration, return success message regardless
+      return res.status(200).json({ message: 'If the email exists, an OTP has been sent.' });
+    }
+
+    const otpCode = generateOTP();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + OTP_EXPIRY_MINUTES);
+
+    await prisma.otp.create({
+      data: {
+        Email: user.Email,
+        Code: otpCode,
+        ExpiresAt: expiresAt,
+        UserId: user.UserId,
+      },
+    });
+
+    try {
+      await sendPasswordResetOTPEmail(user.Email, otpCode, user.FullName);
+    } catch (emailError: any) {
+      console.error('Error sending password reset OTP email:', emailError);
+      // Avoid leaking details, still return generic success
+    }
+
+    return res.status(200).json({ message: 'If the email exists, an OTP has been sent.' });
+  } catch (error: any) {
+    console.error('Error requesting password reset:', error);
+    return res.status(500).json({ message: 'Error requesting password reset', error: error.message });
+  }
+};
+
+// Reset Password using OTP
+export const resetPassword = async (req: Request, res: Response) => {
+  const { email, code, newPassword } = req.body;
+
+  if (!email || !code || !newPassword) {
+    return res.status(400).json({ message: 'Email, OTP code, and newPassword are required' });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { Email: email } });
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid email or OTP' });
+    }
+
+    const otp = await prisma.otp.findFirst({
+      where: {
+        Email: email,
+        Code: code,
+        IsUsed: false,
+        ExpiresAt: { gt: new Date() },
+        UserId: user.UserId,
+      },
+      orderBy: { CreatedAt: 'desc' },
+    });
+
+    if (!otp) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
+    const hashed = await hashPassword(newPassword);
+
+    await prisma.$transaction(async (tx: PrismaClient) => {
+      await tx.user.update({
+        where: { UserId: user.UserId },
+        data: { Password: hashed },
+      });
+
+      await tx.otp.update({
+        where: { OtpId: otp.OtpId },
+        data: { IsUsed: true },
+      });
+
+      // Optionally invalidate other active reset OTPs for this user
+      await tx.otp.updateMany({
+        where: {
+          UserId: user.UserId,
+          IsUsed: false,
+          ExpiresAt: { gt: new Date() },
+          Email: email,
+          OtpId: { not: otp.OtpId },
+        },
+        data: { IsUsed: true },
+      });
+    });
+
+    return res.status(200).json({ message: 'Password has been reset successfully' });
+  } catch (error: any) {
+    console.error('Error resetting password:', error);
+    return res.status(500).json({ message: 'Error resetting password', error: error.message });
+  }
+};
+
