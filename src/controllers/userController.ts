@@ -602,7 +602,7 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     const hashed = await hashPassword(newPassword);
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: PrismaClient) => {
       await tx.user.update({
         where: { UserId: user.UserId },
         data: { Password: hashed },
