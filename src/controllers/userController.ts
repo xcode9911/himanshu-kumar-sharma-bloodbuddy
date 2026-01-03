@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import type { PrismaClient } from '../../generated/prisma/client.js';
+import type { Prisma } from '../../generated/prisma/client.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import prisma from '../models/index.js';
@@ -7,6 +7,7 @@ import { sendOTPEmail, sendPasswordResetOTPEmail } from '../utils/emailService.j
 
 const JWT_SECRET = process.env.JWT_SECRET || 'bloodbuddysecret';
 const OTP_EXPIRY_MINUTES = 10;
+const DEFAULT_ELIGIBILITY_STATUS = 'not_eligible';
 
 // Helper function to generate OTP
 const generateOTP = (): string => {
@@ -21,6 +22,74 @@ const hashPassword = async (password: string): Promise<string> => {
 // Helper function to compare password
 const comparePassword = async (password: string, hashedPassword: string): Promise<boolean> => {
   return await bcrypt.compare(password, hashedPassword);
+};
+
+type YesNo = 'yes' | 'no';
+type EligibilityAnswers = {
+  q1: YesNo;
+  q2: YesNo;
+  q3: YesNo;
+  q4: YesNo;
+  q5: YesNo;
+  q6: YesNo;
+  q7: YesNo;
+  q8: YesNo;
+  q9: YesNo;
+  q10: YesNo;
+  q11: YesNo;
+  q12: YesNo;
+  q13: YesNo;
+  q14: YesNo;
+  q15: YesNo;
+};
+
+const normalizeYesNo = (value: unknown): YesNo | null => {
+  if (typeof value === 'boolean') return value ? 'yes' : 'no';
+  if (typeof value === 'string') {
+    const lower = value.trim().toLowerCase();
+    if (lower === 'yes' || lower === 'y') return 'yes';
+    if (lower === 'no' || lower === 'n') return 'no';
+  }
+  return null;
+};
+
+const evaluateEligibility = (answers: EligibilityAnswers) => {
+  const hardRejects: string[] = [];
+  const softFlags: string[] = [];
+
+  const yes = (key: keyof EligibilityAnswers) => answers[key] === 'yes';
+  const no = (key: keyof EligibilityAnswers) => answers[key] === 'no';
+
+  if (yes('q1')) hardRejects.push('Recent fever/flu/antibiotics in the past 2 weeks');
+  if (yes('q2')) hardRejects.push('Previously advised not to donate');
+  if (yes('q3')) hardRejects.push('Recent surgery, dental extraction, or invasive procedure');
+  if (yes('q4')) hardRejects.push('Currently on newly started or adjusted medicines');
+  if (yes('q5')) hardRejects.push('Recent non-hospital needle exposure (tattoo/piercing/injection/IV)');
+  if (yes('q6')) hardRejects.push('Recent travel to malaria/dengue/typhoid risk area');
+  if (yes('q7')) hardRejects.push('Recent illness requiring hospital admission or IV fluids');
+  if (yes('q8')) hardRejects.push('Recent blood or platelet donation within 3 months');
+  if (yes('q10')) hardRejects.push('History of dizziness/fainting during or after donation');
+  if (yes('q11')) hardRejects.push('Unintentional significant weight change recently');
+  if (yes('q12')) hardRejects.push('History of positive infection result');
+  if (no('q13')) hardRejects.push('Not feeling completely healthy today');
+  if (yes('q14')) hardRejects.push('Alcohol consumed in the last 24–48 hours');
+  if (yes('q15')) hardRejects.push('Donor feels unsure about donating');
+
+  if (yes('q9')) softFlags.push('Low sleep or skipped major meal');
+
+  const hasHardRejects = hardRejects.length > 0;
+  const status: 'eligible' | 'not_eligible' | 'needs_review' = hasHardRejects
+    ? 'not_eligible'
+    : softFlags.length > 0
+      ? 'needs_review'
+      : 'eligible';
+
+  return {
+    status,
+    isEligible: status === 'eligible',
+    hardRejects,
+    softFlags,
+  };
 };
 
 // Build a safe user payload for JWT (no passwords)
@@ -65,6 +134,25 @@ const generateToken = (user: any): string => {
   return jwt.sign({ user: payload }, JWT_SECRET, { expiresIn: '7d' });
 };
 
+// Extract userId from bearer token; surface missing/invalid states for proper HTTP errors.
+const getUserIdFromAuthHeader = (req: Request): { userId: string | null; error?: 'missing' | 'invalid' } => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.toLowerCase().startsWith('bearer ')) {
+    return { userId: null, error: 'missing' };
+  }
+
+  const [, token] = authHeader.split(' ');
+  if (!token) {
+    return { userId: null, error: 'invalid' };
+  }
+  try {
+    const decoded: any = jwt.verify(token, JWT_SECRET);
+    return { userId: decoded?.user?.userId ?? null };
+  } catch (err) {
+    return { userId: null, error: 'invalid' };
+  }
+};
+
 // Unified Register Function
 export const register = async (req: Request, res: Response) => {
   const { role, fullName, email, password, phone, ...roleSpecificData } = req.body;
@@ -85,13 +173,22 @@ export const register = async (req: Request, res: Response) => {
   }
 
   // Role-specific validation
+  let sanitizedRoleData: any = roleSpecificData;
+
   if (userRole === 'donor') {
-    const { bloodType, eligibilityStatus, location } = roleSpecificData;
-    if (!bloodType || !eligibilityStatus || !location) {
+    const { bloodType, location, lastDonationDate } = roleSpecificData;
+    if (!bloodType || !location) {
       return res.status(400).json({ 
-        message: 'Missing required fields for donor: bloodType, eligibilityStatus, location' 
+        message: 'Missing required fields for donor: bloodType, location' 
       });
     }
+
+    sanitizedRoleData = {
+      bloodType,
+      location,
+      eligibilityStatus: DEFAULT_ELIGIBILITY_STATUS,
+      ...(lastDonationDate ? { lastDonationDate } : {}),
+    };
   } else if (userRole === 'organization') {
     const { organizationName, location } = roleSpecificData;
     if (!organizationName || !location) {
@@ -99,6 +196,9 @@ export const register = async (req: Request, res: Response) => {
         message: 'Missing required fields for organization: organizationName, location' 
       });
     }
+    sanitizedRoleData = { organizationName, location, ...(roleSpecificData.contact ? { contact: roleSpecificData.contact } : {}) };
+  } else if (userRole === 'gainer') {
+    sanitizedRoleData = { ...(roleSpecificData.address ? { address: roleSpecificData.address } : {}) };
   }
   // Gainer only needs fullName, email, password (address is optional)
 
@@ -143,7 +243,7 @@ export const register = async (req: Request, res: Response) => {
       password: hashedPassword,
       phone: phone || null,
       role: userRole,
-      roleSpecificData,
+      roleSpecificData: sanitizedRoleData,
     };
 
     // Generate and store OTP with registration data (NO USER CREATED YET)
@@ -383,7 +483,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
     const { fullName, password, phone, role, roleSpecificData } = registrationData;
 
     // Create user and role-specific record in a transaction
-    const result = await prisma.$transaction(async (tx: PrismaClient) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const user = await tx.user.create({
         data: {
           FullName: fullName,
@@ -602,7 +702,7 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     const hashed = await hashPassword(newPassword);
 
-    await prisma.$transaction(async (tx: PrismaClient) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.user.update({
         where: { UserId: user.UserId },
         data: { Password: hashed },
@@ -665,7 +765,7 @@ export const updateProfile = async (req: Request, res: Response) => {
     }
 
     // Update in transaction
-    const result = await prisma.$transaction(async (tx: PrismaClient) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Update user table
       const updatedUser = await tx.user.update({
         where: { UserId: userId },
@@ -766,5 +866,68 @@ export const updateProfile = async (req: Request, res: Response) => {
     console.error('Error updating profile:', error);
     return res.status(500).json({ message: 'Error updating profile', error: error.message });
   }
+};
+
+export const checkEligibility = async (req: Request, res: Response) => {
+  const { userId, answers } = req.body;
+  const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
+
+  if (authError === 'missing') {
+    return res.status(401).json({ message: 'Authorization bearer token is required' });
+  }
+
+  if (authError === 'invalid') {
+    return res.status(401).json({ message: 'Invalid or expired authorization token' });
+  }
+
+  const effectiveUserId = authUserId ?? userId;
+
+  const requiredKeys: Array<keyof EligibilityAnswers> = [
+    'q1','q2','q3','q4','q5','q6','q7','q8','q9','q10','q11','q12','q13','q14','q15',
+  ];
+
+  if (!answers || typeof answers !== 'object') {
+    return res.status(400).json({ message: 'answers object with q1–q15 is required' });
+  }
+
+  const normalizedAnswers = {} as EligibilityAnswers;
+
+  for (const key of requiredKeys) {
+    const normalized = normalizeYesNo((answers as Record<string, unknown>)[key]);
+    if (!normalized) {
+      return res.status(400).json({ message: `Invalid answer for ${key}. Use yes/no or true/false.` });
+    }
+    normalizedAnswers[key] = normalized;
+  }
+
+  const evaluation = evaluateEligibility(normalizedAnswers);
+
+  let storedEligibilityStatus: string | null = null;
+
+  if (effectiveUserId) {
+    const user = await prisma.user.findUnique({
+      where: { UserId: effectiveUserId },
+      include: { donor: true },
+    });
+
+    if (!user || user.Role.toLowerCase() !== 'donor' || !user.donor) {
+      return res.status(400).json({ message: 'Eligibility can only be stored for a valid donor user.' });
+    }
+
+    const updatedDonor = await prisma.donor.update({
+      where: { DonorId: user.donor.DonorId },
+      data: { EligibilityStatus: evaluation.status },
+    });
+
+    storedEligibilityStatus = updatedDonor.EligibilityStatus;
+  }
+
+  return res.status(200).json({
+    status: evaluation.status,
+    isEligible: evaluation.isEligible,
+    disqualifiers: evaluation.hardRejects,
+    softFlags: evaluation.softFlags,
+    ...(storedEligibilityStatus ? { storedEligibilityStatus } : {}),
+  });
 };
 
