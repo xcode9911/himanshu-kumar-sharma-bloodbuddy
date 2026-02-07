@@ -27,6 +27,19 @@ model User {
   gainer           Gainer?
   organization     Organization?
   otps             Otp[]
+  notifications    Notification[]
+}
+
+model Notification {
+  NotificationId Int      @id @default(autoincrement())
+  UserId         String
+  Title          String
+  Message        String
+  Type           String   // e.g., 'donation_update', 'new_request', 'booking_status'
+  RelatedId      Int?     // For linking to specific donation or booking
+  IsRead         Boolean  @default(false)
+  CreatedAt      DateTime @default(now())
+  user           User     @relation(fields: [UserId], references: [UserId])
 }
 
 model Donor {
@@ -36,6 +49,7 @@ model Donor {
   EligibilityStatus String
   LastDonationDate  DateTime?
   Location          String
+  IsAvailable       Boolean  @default(false)
   offers            DonationOffer[]
   responses         DonorResponse[]
   sharedLocations   Location[]
@@ -81,6 +95,8 @@ model Campaign {
   Location       String
   StartDate      DateTime
   EndDate        DateTime
+  PosterData     Bytes?
+  PosterType     String?
   organization   Organization @relation(fields: [OrganizationId], references: [OrganizationId])
 }
 
