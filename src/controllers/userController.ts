@@ -93,7 +93,7 @@ const evaluateEligibility = (answers: EligibilityAnswers) => {
 };
 
 // Build a safe user payload for JWT (no passwords)
-const buildUserPayload = (user: any) => {
+export const buildUserPayload = (user: any) => {
   const base: any = {
     userId: user.UserId,
     email: user.Email,
@@ -110,6 +110,7 @@ const buildUserPayload = (user: any) => {
       eligibilityStatus: user.donor.EligibilityStatus,
       location: user.donor.Location,
       lastDonationDate: user.donor.LastDonationDate,
+      isAvailable: user.donor.IsAvailable,
     };
   } else if (user.Role === 'gainer' && user.gainer) {
     base.gainer = {
@@ -129,7 +130,7 @@ const buildUserPayload = (user: any) => {
 };
 
 // Helper function to generate JWT token with full user payload
-const generateToken = (user: any): string => {
+export const generateToken = (user: any): string => {
   const payload = buildUserPayload(user);
   return jwt.sign({ user: payload }, JWT_SECRET, { expiresIn: '7d' });
 };
@@ -572,19 +573,10 @@ export const verifyOTP = async (req: Request, res: Response) => {
 
 // Login
 export const login = async (req: Request, res: Response) => {
-  const { email, password, role } = req.body;
+  const { email, password } = req.body;
 
-  if (!email || !password || !role) {
-    return res.status(400).json({ message: 'Email, password, and role are required' });
-  }
-
-  // Validate role
-  const validRoles = ['donor', 'gainer', 'organization'];
-  const userRole = role.toLowerCase();
-  if (!validRoles.includes(userRole)) {
-    return res.status(400).json({ 
-      message: 'Invalid role. Must be one of: donor, gainer, organization' 
-    });
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email and password are required' });
   }
 
   try {
@@ -600,13 +592,6 @@ export const login = async (req: Request, res: Response) => {
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
-    }
-
-    // Verify that the provided role matches the user's actual role
-    if (user.Role.toLowerCase() !== userRole) {
-      return res.status(403).json({ 
-        message: `Invalid role. This account is registered as ${user.Role}, not ${userRole}` 
-      });
     }
 
     // Verify password
@@ -903,6 +888,8 @@ export const checkEligibility = async (req: Request, res: Response) => {
   const evaluation = evaluateEligibility(normalizedAnswers);
 
   let storedEligibilityStatus: string | null = null;
+  let token: string | null = null;
+  let userData: any = null;
 
   if (effectiveUserId) {
     const user = await prisma.user.findUnique({
@@ -920,6 +907,22 @@ export const checkEligibility = async (req: Request, res: Response) => {
     });
 
     storedEligibilityStatus = updatedDonor.EligibilityStatus;
+
+    // Fetch updated user with new eligibility status
+    const updatedUser = await prisma.user.findUnique({
+      where: { UserId: effectiveUserId },
+      include: {
+        donor: true,
+        gainer: true,
+        organization: true,
+      },
+    });
+
+    if (updatedUser) {
+      // Generate new JWT token with updated eligibility status
+      token = generateToken(updatedUser);
+      userData = buildUserPayload(updatedUser);
+    }
   }
 
   return res.status(200).json({
@@ -928,6 +931,47 @@ export const checkEligibility = async (req: Request, res: Response) => {
     disqualifiers: evaluation.hardRejects,
     softFlags: evaluation.softFlags,
     ...(storedEligibilityStatus ? { storedEligibilityStatus } : {}),
+    ...(token ? { token } : {}),
+    ...(userData ? { user: userData } : {}),
   });
 };
 
+export const refreshToken = async (req: Request, res: Response) => {
+  const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
+
+  if (authError === 'missing') {
+    return res.status(401).json({ message: 'Authorization bearer token is required' });
+  }
+
+  if (authError === 'invalid') {
+    return res.status(401).json({ message: 'Invalid or expired authorization token' });
+  }
+
+  if (!authUserId) {
+    return res.status(401).json({ message: 'User ID not found in token' });
+  }
+
+  // Fetch fresh user data from database
+  const user = await prisma.user.findUnique({
+    where: { UserId: authUserId },
+    include: {
+      donor: true,
+      gainer: true,
+      organization: true,
+    },
+  });
+
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
+  }
+
+  // Generate new token with fresh data
+  const newToken = generateToken(user);
+  const userData = buildUserPayload(user);
+
+  return res.status(200).json({
+    message: 'Token refreshed successfully',
+    token: newToken,
+    user: userData,
+  });
+};
