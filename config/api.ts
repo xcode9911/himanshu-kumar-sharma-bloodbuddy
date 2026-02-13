@@ -1,4 +1,4 @@
-export const API_BASE_URL = "http://192.168.1.200:8000"
+export const API_BASE_URL = "http://192.168.1.67:8000"
 
 export const API_ENDPOINTS = {
   REGISTER: `${API_BASE_URL}/api/users/register`,
@@ -40,4 +40,10 @@ export const API_ENDPOINTS = {
   ACCEPT_EMERGENCY: (requestId: number) => `${API_BASE_URL}/api/emergency/accept/${requestId}`,
   CANCEL_EMERGENCY: (requestId: number) => `${API_BASE_URL}/api/emergency/cancel/${requestId}`,
   STOP_EMERGENCY: (requestId: number) => `${API_BASE_URL}/api/emergency/stop/${requestId}`,
+  INITIATE_KHALTI: `${API_BASE_URL}/api/payments/initiate-khalti`,
+  VERIFY_KHALTI: `${API_BASE_URL}/api/payments/verify-khalti`,
+  INITIATE_ESEWA: `${API_BASE_URL}/api/payments/initiate-esewa`,
+  VERIFY_ESEWA: `${API_BASE_URL}/api/payments/verify-esewa`,
 }
+
+

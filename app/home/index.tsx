@@ -22,6 +22,8 @@ import DonationSvg from "../../assets/images/donation.svg";
 import ScheduleSvg from "../../assets/images/schedule.svg";
 import AddInventoryModal from "../../components/AddInventoryModal";
 import AppointmentsModal from "../../components/AppointmentsModal";
+import EsewaPaymentModal from "../../components/EsewaPaymentModal";
+import KhaltiPaymentModal from "../../components/KhaltiPaymentModal";
 import QuickDonationModal from "../../components/QuickDonationModal";
 import { API_ENDPOINTS } from "../../config/api";
 import { connectSocket, getSocket } from "../../config/socket";
@@ -56,9 +58,17 @@ export default function Home() {
   const [addInventoryModalVisible, setAddInventoryModalVisible] = useState(false);
   const [inventoryBloodType, setInventoryBloodType] = useState("AB+");
   const [inventoryUnits, setInventoryUnits] = useState("");
+
+  // ... existing code ...
+
   const [donationModalVisible, setDonationModalVisible] = useState(false);
   const [donorBloodType, setDonorBloodType] = useState<string>("A+");
   const [appointmentsModalVisible, setAppointmentsModalVisible] = useState(false);
+
+  // Payment State
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [esewaModalVisible, setEsewaModalVisible] = useState(false);
+  const [paymentBooking, setPaymentBooking] = useState<any>(null);
 
   // Bookings Data
   const [bookings, setBookings] = useState<any[]>([]);
@@ -230,18 +240,17 @@ export default function Home() {
 
       let combinedData: any[] = [];
 
-      if (bookingResponse.ok && bookingData.requests) {
-        combinedData = [...combinedData, ...bookingData.requests.map((r: any) => ({
-          requestId: r.RequestId,
-          type: 'booking',
-          userName: role === 'organization' ? (r.gainer?.user?.FullName || "User") : (r.organization?.OrganizationName || "Blood Bank"),
-          bloodType: r.BloodType,
-          units: r.Units,
-          createdAt: r.RequestDate,
-          status: r.Status?.toLowerCase() || "pending",
-          phone: r.gainer?.user?.Phone || "N/A"
-        }))];
-      }
+      if (bookingResponse.ok && bookingData.requests) combinedData = [...combinedData, ...bookingData.requests.map((r: any) => ({
+        requestId: r.RequestId,
+        type: 'booking',
+        userName: role === 'organization' ? (r.gainer?.user?.FullName || "User") : (r.organization?.OrganizationName || "Blood Bank"),
+        bloodType: r.BloodType,
+        units: r.Units,
+        createdAt: r.RequestDate,
+        status: r.Status?.toLowerCase() || "pending",
+        paymentStatus: r.PaymentStatus || "Pending",
+        phone: r.gainer?.user?.Phone || "N/A"
+      }))];
 
       if (donationResponse.ok && donationData.offers) {
         const offers = donationData.offers;
@@ -253,7 +262,8 @@ export default function Home() {
             bloodType: o.donor?.BloodType || "Unknown",
             units: 1,
             createdAt: o.CreatedAt,
-            status: o.Status?.toLowerCase() || "pending"
+            status: o.Status?.toLowerCase() || "pending",
+            paymentStatus: "N/A"
           }))];
         } else if (role === 'organization') {
           const history = offers.filter((o: any) => o.Status?.toLowerCase() !== 'pending');
@@ -265,7 +275,8 @@ export default function Home() {
             units: 1,
             createdAt: o.CreatedAt,
             status: o.Status?.toLowerCase() || "pending",
-            phone: o.donor?.user?.Phone || "N/A"
+            phone: o.donor?.user?.Phone || "N/A",
+            paymentStatus: "N/A"
           }))];
         }
       }
@@ -345,11 +356,32 @@ export default function Home() {
     );
   };
 
+  const handlePayNow = (booking: any) => {
+    // Open Khalti Payment Modal
+    setPaymentBooking(booking);
+    setPaymentModalVisible(true);
+  };
+
+  const handleEsewaPay = (booking: any) => {
+    // Open eSewa Payment Modal
+    setPaymentBooking(booking);
+    setEsewaModalVisible(true);
+  };
+
+  const handlePaymentSuccess = () => {
+    setPaymentModalVisible(false);
+    setEsewaModalVisible(false);
+    fetchBookings(); // Refresh to show PAID status
+    Alert.alert("Success", "Payment confirmed! Your booking is now secured.");
+  };
+
   const handleAddInventorySuccess = () => {
     setAddInventoryModalVisible(false);
     setInventoryUnits("");
     setInventoryBloodType("AB+");
   };
+
+  // ... existing code ...
 
   const getQuickActions = (): QuickAction[] => {
     switch (userType) {
@@ -621,7 +653,7 @@ export default function Home() {
           ) : bookings.length > 0 ? (
             <View style={styles.bookingsList}>
               {bookings.map((booking, index) => (
-                <View key={booking.requestId || index} style={styles.bookingCard}>
+                <View key={`${booking.type}-${booking.requestId}` || index} style={styles.bookingCard}>
                   <View style={styles.bookingCardHeader}>
                     <View style={styles.bloodBadge}>
                       <Text style={styles.bloodBadgeText}>{booking.bloodType}</Text>
@@ -653,6 +685,35 @@ export default function Home() {
                       >
                         <Text style={styles.cancelButtonText}>Cancel</Text>
                       </TouchableOpacity>
+                    )}
+                    {booking.status === 'approved' && (
+                      <View style={styles.paymentActions}>
+                        <TouchableOpacity
+                          style={[styles.payButton]}
+                          onPress={() => handlePayNow(booking)}
+                        >
+                          <Image
+                            source={require('../../assets/images/khalti-logo.png')}
+                            style={styles.khaltiLogo}
+                          />
+                          <Text style={[styles.payButtonText]}>
+                            {booking.paymentStatus === 'Paid' ? 'Paid' : 'Pay Now'}
+                          </Text>
+                        </TouchableOpacity>
+
+                        {booking.paymentStatus !== 'Paid' && (
+                          <TouchableOpacity
+                            style={[styles.esewaButton]}
+                            onPress={() => handleEsewaPay(booking)}
+                          >
+                            <Image
+                              source={require('../../assets/images/esewa-logo.png')}
+                              style={styles.esewaLogo}
+                            />
+                            <Text style={[styles.esewaButtonText]}>Pay Now</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     )}
                   </View>
                 </View>
@@ -687,6 +748,24 @@ export default function Home() {
         visible={appointmentsModalVisible}
         onClose={() => setAppointmentsModalVisible(false)}
         bookings={bookings}
+        onPay={handlePayNow}
+      />
+
+      <KhaltiPaymentModal
+        visible={paymentModalVisible}
+        onClose={() => setPaymentModalVisible(false)}
+        onSuccess={handlePaymentSuccess}
+        requestId={paymentBooking?.requestId}
+        amount={1000} // Hardcoded 1000 NPR
+        productName={`Blood Request #${paymentBooking?.requestId}`}
+      />
+
+      <EsewaPaymentModal
+        visible={esewaModalVisible}
+        onClose={() => setEsewaModalVisible(false)}
+        onSuccess={handlePaymentSuccess}
+        requestId={paymentBooking?.requestId}
+        amount={1000}
       />
 
       <View style={styles.bottomSpacer} />
@@ -1050,6 +1129,57 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(13),
     fontWeight: "700",
     color: "#DC2626",
+  },
+  payButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: scale(16),
+    paddingVertical: verticalScale(8),
+    borderRadius: moderateScale(12),
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: "#D32F2F",
+    gap: 8,
+    minWidth: scale(150),
+    justifyContent: 'center',
+  },
+  khaltiLogo: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+  },
+  payButtonText: {
+    fontSize: moderateScale(13),
+    fontWeight: "700",
+    color: "#D32F2F",
+  },
+  esewaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: scale(16),
+    paddingVertical: verticalScale(8),
+    borderRadius: moderateScale(12),
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: "#41A124",
+    gap: 8,
+    minWidth: scale(150),
+    justifyContent: 'center',
+  },
+  esewaLogo: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+  },
+  esewaButtonText: {
+    fontSize: moderateScale(13),
+    fontWeight: "700",
+    color: "#41A124",
+  },
+  paymentActions: {
+    flexDirection: 'column',
+    gap: 8,
+    alignItems: 'flex-end',
   },
   activityCard: {
     backgroundColor: "#FFFFFF",

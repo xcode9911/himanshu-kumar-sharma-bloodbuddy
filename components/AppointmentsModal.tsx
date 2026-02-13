@@ -20,9 +20,10 @@ interface AppointmentsModalProps {
     visible: boolean
     onClose: () => void
     bookings: Booking[]
+    onPay?: (booking: Booking) => void
 }
 
-export default function AppointmentsModal({ visible, onClose, bookings }: AppointmentsModalProps) {
+export default function AppointmentsModal({ visible, onClose, bookings, onPay }: AppointmentsModalProps) {
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={styles.modalOverlay}>
@@ -42,7 +43,7 @@ export default function AppointmentsModal({ visible, onClose, bookings }: Appoin
                     >
                         {bookings.length > 0 ? (
                             bookings.map((booking, index) => (
-                                <View key={booking.requestId || index} style={styles.bookingCard}>
+                                <View key={`${booking.type}-${booking.requestId}` || index} style={styles.bookingCard}>
                                     <View style={styles.cardHeader}>
                                         <View style={styles.bloodBadgeContainer}>
                                             <Text style={styles.bloodBadgeText}>{booking.bloodType}</Text>
@@ -96,6 +97,18 @@ export default function AppointmentsModal({ visible, onClose, bookings }: Appoin
                                             </Text>
                                         </View>
                                     </View>
+
+                                    {booking.status === 'approved' && onPay && (
+                                        <TouchableOpacity
+                                            style={styles.payButton}
+                                            onPress={() => onPay(booking)}
+                                        >
+                                            <Text style={styles.payButtonText}>
+                                                {/* @ts-ignore */}
+                                                {booking.paymentStatus === 'Paid' ? 'Paid' : 'Pay Now'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                             ))
                         ) : (
@@ -273,4 +286,16 @@ const styles = StyleSheet.create({
         fontSize: moderateScale(17),
         letterSpacing: 0.5,
     },
+    payButton: {
+        marginTop: verticalScale(12),
+        backgroundColor: '#5C2D91',
+        paddingVertical: verticalScale(8),
+        borderRadius: moderateScale(10),
+        alignItems: 'center',
+    },
+    payButtonText: {
+        color: '#FFF',
+        fontWeight: '700',
+        fontSize: moderateScale(14),
+    }
 })
