@@ -107,6 +107,7 @@ model BloodRequest {
   BloodType      String
   Units          Int
   Status         String
+  PaymentStatus  String          @default("Pending") // Pending, Paid, Failed
   RequestDate    DateTime        @default(now())
   gainer         Gainer          @relation(fields: [GainerId], references: [GainerId])
   organization   Organization    @relation(fields: [OrganizationId], references: [OrganizationId])
@@ -137,14 +138,17 @@ model Chat {
 }
 
 model Payment {
-  PaymentId   Int          @id @default(autoincrement())
-  RequestId   Int
-  GainerId    Int
-  Amount      Float
-  Status      String
-  PaymentDate DateTime     @default(now())
-  gainer      Gainer       @relation(fields: [GainerId], references: [GainerId])
-  request     BloodRequest @relation(fields: [RequestId], references: [RequestId])
+  PaymentId        Int          @id @default(autoincrement())
+  RequestId        Int
+  GainerId         Int
+  Amount           Float
+  Status           String       // Paid, Failed, Refunded
+  Provider         String       // Khalti, eSewa
+  Token            String
+  TransactionId    String?      // Vendor Transaction ID
+  PaymentDate      DateTime     @default(now())
+  gainer           Gainer       @relation(fields: [GainerId], references: [GainerId])
+  request          BloodRequest @relation(fields: [RequestId], references: [RequestId])
 }
 
 model Otp {

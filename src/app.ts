@@ -14,6 +14,7 @@ import donorRoutes from "./routes/donorRoute.js";
 import emergencyRoutes from "./routes/emergencyRoute.js";
 import notificationRoutes from "./routes/notificationRoute.js";
 import organizationRoutes from "./routes/organizationRoute.js";
+import paymentRoutes from "./routes/paymentRoute.js";
 import requestRoutes from "./routes/requestRoute.js";
 import userRoutes from "./routes/userRoute.js";
 
@@ -76,6 +77,7 @@ app.use("/api/bookings", bookingRoutes);
 app.use('/api/donations', donationRoutes);
 app.use('/api/donations', donationRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use("/api/payments", paymentRoutes);
 app.use('/api/campaigns', campaignRoutes);
 
 
