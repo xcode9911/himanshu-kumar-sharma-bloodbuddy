@@ -1,5 +1,5 @@
 import express from 'express';
-import { esewaFailure, esewaSuccess, initiateEsewaPayment, initiateKhaltiPayment, khaltiCallback, verifyEsewaPayment, verifyKhaltiPayment } from '../controllers/paymentController.js';
+import { esewaFailure, esewaSuccess, getPaymentHistory, initiateEsewaPayment, initiateKhaltiPayment, khaltiCallback, verifyEsewaPayment, verifyKhaltiPayment } from '../controllers/paymentController.js';
 import catchAsync from '../utils/catchAsync.js';
 
 const router = express.Router();
@@ -12,5 +12,6 @@ router.post('/initiate-esewa', catchAsync(initiateEsewaPayment));
 router.post('/verify-esewa', catchAsync(verifyEsewaPayment));
 router.get('/esewa-success', catchAsync(esewaSuccess));
 router.get('/esewa-failure', catchAsync(esewaFailure));
+router.get('/history', catchAsync(getPaymentHistory));
 
 export default router;
