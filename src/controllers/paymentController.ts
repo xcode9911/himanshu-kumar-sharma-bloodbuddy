@@ -1,7 +1,10 @@
 import axios from 'axios';
 import crypto from 'crypto';
 import type { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import prisma from '../models/index.js';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'bloodbuddysecret';
 
 export const initiateKhaltiPayment = async (req: Request, res: Response) => {
     const { requestId, amount, productName } = req.body;
@@ -455,4 +458,129 @@ export const esewaFailure = async (req: Request, res: Response) => {
             </body>
         </html>
     `);
+};
+
+export const getPaymentHistory = async (req: Request, res: Response) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.toLowerCase().startsWith('bearer ')) {
+            return res.status(401).json({ message: "Unauthorized: Missing or invalid token" });
+        }
+
+        const parts = authHeader.split(' ');
+        if (parts.length < 2) {
+            return res.status(401).json({ message: "Unauthorized: Invalid token format" });
+        }
+        const token = parts[1] as string;
+        let userId: string = '';
+        let role: string = '';
+
+        try {
+            const decoded: any = jwt.verify(token, JWT_SECRET as string);
+            userId = decoded?.user?.userId as string;
+            role = decoded?.user?.role?.toLowerCase() as string;
+        } catch (err) {
+            return res.status(401).json({ message: "Unauthorized: Invalid token" });
+        }
+
+        if (!userId || !role) {
+            return res.status(401).json({ message: "Unauthorized: User info not found in token" });
+        }
+
+        let payments;
+
+        if (role === 'gainer') {
+            const gainer = await prisma.gainer.findUnique({
+                where: { UserId: userId }
+            });
+
+            if (!gainer) {
+                return res.status(404).json({ message: "Gainer record not found" });
+            }
+
+            payments = await prisma.payment.findMany({
+                where: { GainerId: gainer.GainerId },
+                include: {
+                    request: {
+                        include: {
+                            organization: {
+                                select: {
+                                    OrganizationName: true,
+                                    Location: true
+                                }
+                            }
+                        }
+                    }
+                },
+                orderBy: { PaymentDate: 'desc' }
+            });
+        } else if (role === 'organization') {
+            const org = await prisma.organization.findUnique({
+                where: { UserId: userId }
+            });
+
+            if (!org) {
+                return res.status(404).json({ message: "Organization record not found" });
+            }
+
+            payments = await prisma.payment.findMany({
+                where: {
+                    request: {
+                        OrganizationId: org.OrganizationId
+                    }
+                },
+                include: {
+                    gainer: {
+                        include: {
+                            user: {
+                                select: {
+                                    FullName: true,
+                                    Phone: true
+                                }
+                            }
+                        }
+                    },
+                    request: true
+                },
+                orderBy: { PaymentDate: 'desc' }
+            });
+        } else {
+            // For donors or other roles, if they ever have payments linked directly or via GainerId
+            // The prompt asked for Donor side to see their payments too (if they are also gainers or if payments exist for them)
+            // But usually only Gainer makes payments. If a user is both, they might have a Gainer profile.
+            // Let's check for a gainer profile regardless for others.
+            const gainer = await prisma.gainer.findUnique({
+                where: { UserId: userId }
+            });
+
+            if (gainer) {
+                payments = await prisma.payment.findMany({
+                    where: { GainerId: gainer.GainerId },
+                    include: {
+                        request: {
+                            include: {
+                                organization: {
+                                    select: {
+                                        OrganizationName: true,
+                                        Location: true
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    orderBy: { PaymentDate: 'desc' }
+                });
+            } else {
+                return res.status(200).json({ payments: [] });
+            }
+        }
+
+        return res.status(200).json({ success: true, payments });
+    } catch (error: any) {
+        console.error("Fetch Payment History Error:", error.message);
+        return res.status(500).json({
+            message: "Internal Server Error fetching payment history",
+            error: error.message
+        });
+    }
 };
