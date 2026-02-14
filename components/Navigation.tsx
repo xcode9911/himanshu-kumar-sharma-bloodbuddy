@@ -1,13 +1,13 @@
-import { Ionicons } from "@expo/vector-icons"
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from 'expo-location';
-import AsyncStorage from "@react-native-async-storage/async-storage"
-import React, { useEffect, useRef, useState } from "react"
-import { Alert, Animated, Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native"
-import { API_ENDPOINTS } from "../config/api"
-import { connectSocket, getSocket } from "../config/socket"
-import EmergencyFAB from "./EmergencyFAB"
-import EmergencyModal from "./EmergencyModal"
-import EmergencyStatusModal from "./EmergencyStatusModal"
+import React, { useEffect, useRef, useState } from "react";
+import { Alert, Animated, Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { API_ENDPOINTS } from "../config/api";
+import { connectSocket, getSocket } from "../config/socket";
+import EmergencyFAB from "./EmergencyFAB";
+import EmergencyModal from "./EmergencyModal";
+import EmergencyStatusModal from "./EmergencyStatusModal";
 
 const { width } = Dimensions.get("window")
 const ACTIVE_BG = "#D11B31"
@@ -16,7 +16,7 @@ const ICON_INACTIVE = "#FFFFFF"
 const ICON_ACTIVE = "#D11B31"
 const TEXT_ACTIVE = "#D11B31"
 
-export type TabKey = "home" | "organization" | "map" | "chat" | "profile" | "bookings" | "inventory" | "contact"
+export type TabKey = "home" | "organization" | "map" | "chat" | "profile" | "bookings" | "inventory" | "contact" | "history"
 export type UserType = "gainer" | "donor" | "organization"
 
 type NavigationProps = {

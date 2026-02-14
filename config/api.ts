@@ -27,6 +27,7 @@ export const API_ENDPOINTS = {
   GET_DONOR_SCHEDULE: `${API_BASE_URL}/api/donations/donor/schedule`,
   GET_ORG_REQUESTS: `${API_BASE_URL}/api/donations/organization/requests`,
   GET_ORG_CONFIRMED: `${API_BASE_URL}/api/donations/organization/confirmed`,
+  GET_DONOR_HISTORY: `${API_BASE_URL}/api/donations/donor/history`,
   UPDATE_DONATION_STATUS: (offerId: number) => `${API_BASE_URL}/api/donations/update-status/${offerId}`,
   GET_NOTIFICATIONS: `${API_BASE_URL}/api/notifications/all`,
   MARK_NOTIFICATION_READ: (id: number) => `${API_BASE_URL}/api/notifications/mark-read/${id}`,

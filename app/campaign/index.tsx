@@ -209,7 +209,7 @@ export default function CampaignListScreen() {
 
     const renderEmpty = () => (
         <View style={styles.emptyContainer}>
-            <Ionicons name="calendar-clear-outline" size={64} color="#D1D5DB" />
+            <Ionicons name="calendar-outline" size={64} color="#D1D5DB" />
             <Text style={styles.emptyTitle}>No Campaigns Found</Text>
             <Text style={styles.emptySubtitle}>
                 {userRole === 'organization'
@@ -222,15 +222,20 @@ export default function CampaignListScreen() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#1F2937" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Campaigns</Text>
-                {userRole === 'organization' ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { marginLeft: -4, padding: 4, marginRight: scale(8) }]}>
+                        <Ionicons name="chevron-back" size={28} color="#D11B31" />
+                    </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.headerTitle}>Campaigns</Text>
+                        <Text style={styles.subtitle}>Active blood donation events near you</Text>
+                    </View>
+                </View>
+                {userRole === 'organization' && (
                     <TouchableOpacity onPress={() => router.push("/campaign/create")}>
                         <Ionicons name="add-circle" size={28} color="#D11B31" />
                     </TouchableOpacity>
-                ) : <View style={{ width: 28 }} />}
+                )}
             </View>
 
             {loading ? (
@@ -269,9 +274,14 @@ const styles = StyleSheet.create({
         borderBottomColor: "#E5E7EB",
     },
     headerTitle: {
-        fontSize: moderateScale(18),
-        fontWeight: "600",
+        fontSize: moderateScale(22),
+        fontWeight: "900",
         color: "#111827",
+    },
+    subtitle: {
+        fontSize: moderateScale(13),
+        color: "#6B7280",
+        marginTop: 2,
     },
     backButton: {
         padding: scale(4),

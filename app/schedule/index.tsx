@@ -255,11 +255,14 @@ export default function ScheduleScreen() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <TouchableOpacity onPress={() => router.back()}>
-                        <Ionicons name="arrow-back" size={24} color="#111827" />
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TouchableOpacity onPress={() => router.back()} style={{ padding: 4, marginLeft: -4, marginRight: scale(8) }}>
+                        <Ionicons name="chevron-back" size={28} color="#D11B31" />
                     </TouchableOpacity>
-                    <Text style={styles.title}>Donation Schedule</Text>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.title}>Donation Schedule</Text>
+                        <Text style={styles.subtitle}>Your confirmed and pending visits</Text>
+                    </View>
                 </View>
             </View>
 
@@ -294,7 +297,7 @@ export default function ScheduleScreen() {
                     contentContainerStyle={styles.list}
                     ListEmptyComponent={
                         <View style={styles.emptyState}>
-                            <Ionicons name="calendar-outline" size={80} color="#E5E7EB" />
+                            <Ionicons name="calendar-outline" size={80} color="#D1D5DB" />
                             <Text style={styles.emptyTitle}>
                                 {userRole === 'organization' ? 'No Pending Donations' : 'No Scheduled Donations'}
                             </Text>
@@ -371,8 +374,13 @@ const styles = StyleSheet.create({
     },
     title: {
         fontSize: moderateScale(22),
-        fontWeight: "800",
+        fontWeight: "900",
         color: "#111827",
+    },
+    subtitle: {
+        fontSize: moderateScale(13),
+        color: "#6B7280",
+        marginTop: 2,
     },
     list: {
         padding: scale(16),

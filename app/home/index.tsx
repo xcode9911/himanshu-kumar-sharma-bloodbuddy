@@ -640,6 +640,17 @@ export default function Home() {
         </View>
       )}
 
+      {/* Appreciation Quote */}
+      {userType !== "organization" && (
+        <View style={styles.quoteSection}>
+          <View style={styles.quoteCard}>
+            <Text style={styles.quoteText}>
+              "Let’s take a moment to appreciate you — because your kindness saves lives."
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Viral Bubbles Animation for Gainer Removed and Integrated Into Header */}
 
       {/* My Bookings Section */}
@@ -1195,6 +1206,27 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(14),
     color: "#9CA3AF",
     textAlign: "center",
+  },
+  quoteSection: {
+    marginTop: verticalScale(24),
+    paddingHorizontal: scale(20),
+  },
+  quoteCard: {
+    backgroundColor: "#FEF2F2",
+    borderRadius: moderateScale(22),
+    padding: scale(20),
+    paddingRight: scale(85), // Space for Emergency FAB to prevent overlap
+    borderWidth: 1,
+    borderColor: "#FEE2E2",
+    borderStyle: "dashed",
+    justifyContent: "center",
+  },
+  quoteText: {
+    fontSize: moderateScale(15),
+    color: "#4B5563",
+    fontWeight: "600",
+    fontStyle: "italic",
+    lineHeight: moderateScale(22),
   },
   bottomSpacer: {
     height: verticalScale(100),
