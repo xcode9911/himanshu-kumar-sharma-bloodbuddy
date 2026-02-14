@@ -364,3 +364,74 @@ export const getOrgConfirmed = async (req: Request, res: Response) => {
         return res.status(500).json({ message: 'Internal server error', error: error.message });
     }
 };
+
+export const getDonorHistory = async (req: Request, res: Response) => {
+    const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
+    if (authError || !authUserId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+        const user = await prisma.user.findUnique({
+            where: { UserId: authUserId },
+            include: { donor: true },
+        });
+
+        if (!user || user.Role.toLowerCase() !== 'donor' || !user.donor) {
+            return res.status(403).json({ message: 'Donor profile not found' });
+        }
+
+        const donorId = user.donor.DonorId;
+
+        // Fetch regular donation offers to organizations
+        const offers = await prisma.donationOffer.findMany({
+            where: { DonorId: donorId },
+            include: { organization: true },
+            orderBy: { CreatedAt: 'desc' }
+        });
+
+        // Fetch responses to emergency blood requests
+        const responses = await prisma.donorResponse.findMany({
+            where: { DonorId: donorId },
+            include: {
+                request: {
+                    include: {
+                        gainer: {
+                            include: { user: { select: { FullName: true } } }
+                        }
+                    }
+                }
+            },
+            orderBy: { CreatedAt: 'desc' }
+        });
+
+        // Combine and format history
+        const history = [
+            ...offers.map(o => ({
+                id: o.OfferId,
+                type: 'Donation Offer',
+                name: o.organization.OrganizationName,
+                bloodType: user.donor?.BloodType,
+                units: 1, // Regular donations are typically 1 unit
+                status: o.Status,
+                date: o.CreatedAt,
+                scheduledDate: o.DonationDate
+            })),
+            ...responses.map(r => ({
+                id: r.ResponseId,
+                type: 'Emergency Response',
+                name: r.request.gainer?.user?.FullName || 'Unknown Gainer',
+                bloodType: r.request.BloodType,
+                units: r.request.Units,
+                status: r.Status,
+                date: r.CreatedAt
+            }))
+        ];
+
+        // Sort by date descending
+        history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        return res.status(200).json({ history });
+    } catch (error: any) {
+        console.error('Error in getDonorHistory:', error);
+        return res.status(500).json({ message: 'Internal server error', error: error.message });
+    }
+};
