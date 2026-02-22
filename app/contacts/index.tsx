@@ -1,10 +1,13 @@
 import { Ionicons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import { useRouter } from "expo-router"
 import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,6 +15,7 @@ import {
   View,
 } from "react-native"
 import Navigation from "../../components/Navigation"
+import { API_ENDPOINTS } from "../../config/api"
 import { moderateScale, scale, verticalScale } from "../../utils/responsive"
 
 type UserType = "gainer" | "donor" | "organization"
@@ -26,6 +30,9 @@ interface Contact {
   email: string
   lastDonation?: string
   role: string
+  location?: string
+  isAvailable?: boolean
+  inventory?: { bloodType: string; units: number }[]
 }
 
 interface ContactsScreenProps {
@@ -33,6 +40,7 @@ interface ContactsScreenProps {
 }
 
 export default function ContactsScreen({ hideNavigation = false }: ContactsScreenProps = {}) {
+  const router = useRouter()
   const [contacts, setContacts] = useState<Contact[]>([])
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -40,15 +48,20 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
   const [refreshing, setRefreshing] = useState(false)
   const [userType, setUserType] = useState<UserType>("donor")
   const [activeCategory, setActiveCategory] = useState<"organization" | "donor">("organization")
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false)
 
   useEffect(() => {
     loadUserData()
-    loadContacts()
   }, [])
 
   useEffect(() => {
+    loadContacts()
+  }, [userType, activeCategory])
+
+  useEffect(() => {
     filterContacts()
-  }, [searchQuery, contacts, activeCategory])
+  }, [searchQuery, contacts])
 
   const loadUserData = async () => {
     try {
@@ -65,96 +78,48 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
   const loadContacts = async () => {
     try {
       setLoading(true)
-      // Mock data for now - expanded to include Organizations
-      const mockContacts: Contact[] = [
-        {
-          id: "1",
-          name: "City Central Blood Bank",
-          phone: "+91 98765 43210",
-          bloodType: "All",
-          address: "123 Medical Street",
-          city: "Mumbai",
-          email: "support@citybloodbank.com",
-          role: "Organization",
-        },
-        {
-          id: "2",
-          name: "Priya Sharma",
-          phone: "+91 98765 43211",
-          bloodType: "B+",
-          address: "456 Park Avenue",
-          city: "Mumbai",
-          email: "priya.sharma@email.com",
-          lastDonation: "2024-01-10",
-          role: "Donor",
-        },
-        {
-          id: "3",
-          name: "Hope Charity Hospital",
-          phone: "+91 98765 43212",
-          bloodType: "A+",
-          address: "789 Charity Lane",
-          city: "Mumbai",
-          email: "contact@hopehospital.org",
-          role: "Organization",
-        },
-        {
-          id: "4",
-          name: "Sneha Gupta",
-          phone: "+91 98765 43213",
-          bloodType: "AB-",
-          address: "321 Health Boulevard",
-          city: "Mumbai",
-          email: "sneha.gupta@email.com",
-          lastDonation: "2024-01-08",
-          role: "Donor",
-        },
-        {
-          id: "5",
-          name: "Red Cross Mumbai",
-          phone: "+91 98765 43214",
-          bloodType: "All Types",
-          address: "555 Apollo Street",
-          city: "Mumbai",
-          email: "mumbai@redcross.in",
-          role: "Organization",
-        },
-        {
-          id: "6",
-          name: "Anjali Desai",
-          phone: "+91 98765 43215",
-          bloodType: "B-",
-          address: "888 Community Lane",
-          city: "Mumbai",
-          email: "anjali.desai@email.com",
-          lastDonation: "2024-01-12",
-          role: "Donor",
-        },
-        {
-          id: "7",
-          name: "Metro Life Care",
-          phone: "+91 98765 43216",
-          bloodType: "O+",
-          address: "222 Hope Street",
-          city: "Mumbai",
-          email: "info@metrolife.com",
-          role: "Organization",
-        },
-        {
-          id: "8",
-          name: "Neha Malhotra",
-          phone: "+91 98765 43217",
-          bloodType: "AB+",
-          address: "999 Care Road",
-          city: "Mumbai",
-          email: "neha.malhotra@email.com",
-          lastDonation: "2024-01-11",
-          role: "Donor",
-        },
-      ]
+      const token = await AsyncStorage.getItem("authToken")
 
-      setContacts(mockContacts)
-      setFilteredContacts(mockContacts)
+      let url = ""
+      if (userType === "gainer") {
+        url = activeCategory === "organization" ? API_ENDPOINTS.GET_ORGANIZATIONS : API_ENDPOINTS.GET_DONORS
+      } else {
+        // For donors/orgs, maybe show both or just one. Defaulting to organizations if not gainer for now.
+        url = API_ENDPOINTS.GET_ORGANIZATIONS
+      }
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        let formattedContacts: Contact[] = []
+        if (activeCategory === "organization" || (userType !== "gainer")) {
+          formattedContacts = (data.organizations || []).map((org: any) => ({
+            id: org.id,
+            organizationId: org.organizationId,
+            name: org.organizationName,
+            phone: org.phone || org.contact,
+            address: org.location,
+            city: org.location,
+            email: org.email,
+            role: "Organization",
+            bloodType: "All",
+            inventory: org.inventory
+          }))
+        } else {
+          // For donors from getAllDonors, id is already userId
+          formattedContacts = data.donors || []
+        }
+        setContacts(formattedContacts)
+        setFilteredContacts(formattedContacts)
+      } else {
+        console.error("Failed to fetch contacts:", data.message)
+      }
     } catch (error) {
       console.error("Error loading contacts:", error)
     } finally {
@@ -171,19 +136,14 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
   const filterContacts = () => {
     let filtered = [...contacts]
 
-    // Gainer specific role filtering
-    if (userType === "gainer") {
-      const roleToMatch = activeCategory === "organization" ? "Organization" : "Donor"
-      filtered = filtered.filter((contact) => contact.role.toLowerCase() === roleToMatch.toLowerCase())
-    }
-
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(
         (contact) =>
           contact.name.toLowerCase().includes(query) ||
           contact.phone.includes(query) ||
-          contact.city.toLowerCase().includes(query) ||
+          contact.city?.toLowerCase().includes(query) ||
+          contact.address?.toLowerCase().includes(query) ||
           contact.bloodType?.toLowerCase().includes(query)
       )
     }
@@ -197,11 +157,7 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
       case "recipient":
       case "gainer":
         return "#2563EB"
-      case "doctor":
-        return "#059669"
       case "organization":
-        return "#7C3AED"
-      case "coordinator":
         return "#7C3AED"
       default:
         return "#6B7280"
@@ -217,80 +173,66 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
       .slice(0, 2)
   }
 
-  const handleCallPress = (phone: string) => {
-    console.log("Calling:", phone)
-    // Implement actual call functionality
+  const handleChatPress = (contact: Contact) => {
+    console.log("Chat with:", contact.id)
+    router.push({
+      pathname: "/chat/conversation",
+      params: {
+        contactId: contact.id,
+        contactName: contact.name,
+        contactRole: contact.role
+      }
+    })
   }
 
-  const handleChatPress = (contactId: string) => {
-    console.log("Chat with:", contactId)
-    // Navigate to chat screen
-  }
-
-  const handleViewProfile = (contactId: string) => {
-    console.log("View profile:", contactId)
-    // Navigate to profile screen
+  const handleViewProfile = (contact: Contact) => {
+    setSelectedContact(contact)
+    setDetailsModalVisible(true)
   }
 
   const renderContactCard = ({ item }: { item: Contact }) => (
-    <View style={styles.contactCard}>
+    <TouchableOpacity
+      style={styles.contactCard}
+      activeOpacity={0.7}
+      onPress={() => handleViewProfile(item)}
+    >
       <View style={styles.cardHeader}>
         <View style={[styles.avatarContainer, { backgroundColor: getAvatarColor(item.role) }]}>
           <Text style={styles.avatarText}>{getInitials(item.name)}</Text>
         </View>
 
         <View style={styles.contactInfo}>
-          <Text style={styles.contactName}>{item.name}</Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.contactName} numberOfLines={1}>{item.name}</Text>
+            {item.bloodType && item.role === "Donor" && (
+              <View style={styles.bloodBadgeSmall}>
+                <Text style={styles.bloodTextSmall}>{item.bloodType}</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.role}>{item.role}</Text>
           <Text style={styles.phone}>{item.phone}</Text>
         </View>
 
-        {item.bloodType && (
-          <View style={styles.bloodTypeBadge}>
-            <Ionicons name="water" size={14} color="#D11B31" />
-            <Text style={styles.bloodTypeText}>{item.bloodType}</Text>
-          </View>
-        )}
+        <TouchableOpacity
+          style={styles.sideChatBtn}
+          onPress={() => handleChatPress(item)}
+        >
+          <Ionicons name="chatbubble-ellipses-outline" size={24} color="#D11B31" />
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.divider} />
-
-      <View style={styles.cardBody}>
-        <View style={styles.infoRow}>
-          <Ionicons name="location-outline" size={16} color="#6B7280" />
-          <Text style={styles.infoText}>{item.address}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Ionicons name="mail-outline" size={16} color="#6B7280" />
-          <Text style={styles.infoText}>{item.email}</Text>
+      <View style={styles.cardFooter}>
+        <View style={styles.locationInfo}>
+          {item.role === "Organization" && (
+            <>
+              <Ionicons name="location-outline" size={14} color="#6B7280" />
+              <Text style={styles.locationText} numberOfLines={1}>{item.address}</Text>
+            </>
+          )}
         </View>
       </View>
-
-      <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.chatBtn]}
-          onPress={() => handleChatPress(item.id)}
-        >
-          <Ionicons name="chatbubble-outline" size={18} color="#FFFFFF" />
-          <Text style={styles.actionBtnText}>Chat Now</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.callBtn]}
-          onPress={() => handleCallPress(item.phone)}
-        >
-          <Ionicons name="call" size={18} color="#FFFFFF" />
-          <Text style={styles.actionBtnText}>Call</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.profileBtn]}
-          onPress={() => handleViewProfile(item.id)}
-        >
-          <Ionicons name="information-circle-outline" size={18} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
-    </View>
+    </TouchableOpacity>
   )
 
   const renderEmptyState = () => (
@@ -303,7 +245,113 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
     </View>
   )
 
-  if (loading) {
+  const ProfileDetailsModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={detailsModalVisible}
+      onRequestClose={() => setDetailsModalVisible(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Profile Details</Text>
+            <TouchableOpacity onPress={() => setDetailsModalVisible(false)}>
+              <Ionicons name="close" size={24} color="#111827" />
+            </TouchableOpacity>
+          </View>
+
+          {selectedContact && (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.modalProfileSection}>
+                <View style={[styles.modalAvatar, { backgroundColor: getAvatarColor(selectedContact.role) }]}>
+                  <Text style={styles.modalAvatarText}>{getInitials(selectedContact.name)}</Text>
+                </View>
+                <Text style={styles.modalName}>{selectedContact.name}</Text>
+                <Text style={styles.modalRole}>{selectedContact.role}</Text>
+              </View>
+
+              <View style={styles.modalInfoSection}>
+                <View style={styles.modalInfoRow}>
+                  <Ionicons name="call-outline" size={20} color="#D11B31" />
+                  <View style={styles.modalInfoTextContainer}>
+                    <Text style={styles.modalLabel}>Phone</Text>
+                    <Text style={styles.modalValue}>{selectedContact.phone}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.modalInfoRow}>
+                  <Ionicons name="mail-outline" size={20} color="#D11B31" />
+                  <View style={styles.modalInfoTextContainer}>
+                    <Text style={styles.modalLabel}>Email</Text>
+                    <Text style={styles.modalValue}>{selectedContact.email}</Text>
+                  </View>
+                </View>
+
+                {selectedContact.role === "Organization" && (
+                  <View style={styles.modalInfoRow}>
+                    <Ionicons name="location-outline" size={20} color="#D11B31" />
+                    <View style={styles.modalInfoTextContainer}>
+                      <Text style={styles.modalLabel}>Address</Text>
+                      <Text style={styles.modalValue}>{selectedContact.address}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {selectedContact.role === "Donor" && (
+                  <>
+                    <View style={styles.modalInfoRow}>
+                      <Ionicons name="water-outline" size={20} color="#D11B31" />
+                      <View style={styles.modalInfoTextContainer}>
+                        <Text style={styles.modalLabel}>Blood Type</Text>
+                        <Text style={styles.modalValue}>{selectedContact.bloodType}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.modalInfoRow}>
+                      <Ionicons name="pulse-outline" size={20} color="#D11B31" />
+                      <View style={styles.modalInfoTextContainer}>
+                        <Text style={styles.modalLabel}>Status</Text>
+                        <Text style={[styles.modalValue, { color: selectedContact.isAvailable ? "#10B981" : "#D11B31" }]}>
+                          {selectedContact.isAvailable ? "Available" : "Unavailable"}
+                        </Text>
+                      </View>
+                    </View>
+                  </>
+                )}
+
+                {selectedContact.role === "Organization" && selectedContact.inventory && (
+                  <View style={styles.inventorySection}>
+                    <Text style={styles.inventoryTitle}>Blood Inventory</Text>
+                    <View style={styles.inventoryGrid}>
+                      {selectedContact.inventory.map((inv, index) => (
+                        <View key={index} style={styles.inventoryItem}>
+                          <Text style={styles.inventoryBloodType}>{inv.bloodType}</Text>
+                          <Text style={styles.inventoryUnits}>{inv.units} Units</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={styles.modalChatBtn}
+                onPress={() => {
+                  setDetailsModalVisible(false)
+                  handleChatPress(selectedContact)
+                }}
+              >
+                <Ionicons name="chatbubble-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.modalChatBtnText}>Message</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
+  )
+
+  if (loading && !refreshing) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#D11B31" />
@@ -320,7 +368,7 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
           <Ionicons name="search" size={20} color="#9CA3AF" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by name or phone..."
+            placeholder="Search by name or city..."
             placeholderTextColor="#9CA3AF"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -379,12 +427,14 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
       <FlatList
         data={filteredContacts}
         renderItem={renderContactCard}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={renderEmptyState}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#D11B31"]} />}
       />
+
+      <ProfileDetailsModal />
 
       {/* Navigation Bar */}
       {!hideNavigation && <Navigation userType={userType} initialTab="contact" />}
@@ -421,11 +471,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#F3F4F6",
     borderRadius: moderateScale(25),
-    paddingHorizontal: scale(12),
-    paddingVertical: verticalScale(12),
+    paddingHorizontal: scale(16),
+    paddingVertical: verticalScale(10),
     gap: scale(8),
-    borderWidth: 2,
-    borderColor: "#D11B31",
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
   },
   searchInput: {
     flex: 1,
@@ -449,29 +499,31 @@ const styles = StyleSheet.create({
   },
   contactCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: moderateScale(16),
+    borderRadius: moderateScale(20),
     padding: scale(16),
     marginBottom: verticalScale(16),
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowRadius: 10,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
   },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: scale(12),
   },
   avatarContainer: {
-    width: moderateScale(48),
-    height: moderateScale(48),
-    borderRadius: moderateScale(24),
+    width: moderateScale(50),
+    height: moderateScale(50),
+    borderRadius: moderateScale(25),
     justifyContent: "center",
     alignItems: "center",
+    marginRight: scale(12),
   },
   avatarText: {
-    fontSize: moderateScale(16),
+    fontSize: moderateScale(18),
     fontWeight: "700",
     color: "#FFFFFF",
   },
@@ -480,85 +532,76 @@ const styles = StyleSheet.create({
   },
   contactName: {
     fontSize: moderateScale(16),
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#111827",
-    marginBottom: verticalScale(2),
   },
-  role: {
-    fontSize: moderateScale(12),
-    color: "#6B7280",
-    marginBottom: verticalScale(2),
-  },
-  phone: {
-    fontSize: moderateScale(12),
-    color: "#6B7280",
-  },
-  bloodTypeBadge: {
-    backgroundColor: "#FEE2E2",
-    paddingHorizontal: scale(10),
-    paddingVertical: verticalScale(6),
-    borderRadius: moderateScale(8),
-    flexDirection: "row",
-    alignItems: "center",
-    gap: scale(4),
-  },
-  bloodTypeText: {
-    fontSize: moderateScale(12),
-    color: "#D11B31",
-    fontWeight: "600",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#E5E7EB",
-    marginVertical: verticalScale(12),
-  },
-  cardBody: {
-    gap: verticalScale(8),
-    marginBottom: verticalScale(12),
-  },
-  infoRow: {
+  nameRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: scale(8),
+    marginBottom: verticalScale(2),
   },
-  infoText: {
-    flex: 1,
+  bloodBadgeSmall: {
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: scale(6),
+    paddingVertical: verticalScale(2),
+    borderRadius: moderateScale(6),
+  },
+  bloodTextSmall: {
+    fontSize: moderateScale(10),
+    color: "#D11B31",
+    fontWeight: "700",
+  },
+  role: {
+    fontSize: moderateScale(12),
+    color: "#D11B31",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: verticalScale(2),
+  },
+  phone: {
     fontSize: moderateScale(13),
-    color: "#4B5563",
+    color: "#6B7280",
   },
-  actionButtons: {
+  sideChatBtn: {
+    width: moderateScale(44),
+    height: moderateScale(44),
+    borderRadius: moderateScale(22),
+    backgroundColor: "#FEE2E2",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cardFooter: {
     flexDirection: "row",
-    gap: scale(10),
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: verticalScale(12),
+    paddingTop: verticalScale(12),
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
   },
-  actionBtn: {
-    flex: 1,
+  locationInfo: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: scale(6),
-    paddingVertical: verticalScale(10),
-    borderRadius: moderateScale(10),
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    flex: 1,
+    marginRight: scale(8),
   },
-  chatBtn: {
-    backgroundColor: "#D11B31",
-    flex: 1.5,
-  },
-  callBtn: {
-    backgroundColor: "#059669",
-  },
-  profileBtn: {
-    backgroundColor: "#2563EB",
-    paddingHorizontal: scale(8),
-  },
-  actionBtnText: {
+  locationText: {
     fontSize: moderateScale(12),
-    color: "#FFFFFF",
-    fontWeight: "600",
+    color: "#6B7280",
+    marginLeft: scale(4),
+  },
+  bloodBadge: {
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: scale(10),
+    paddingVertical: verticalScale(4),
+    borderRadius: moderateScale(8),
+  },
+  bloodText: {
+    fontSize: moderateScale(12),
+    color: "#D11B31",
+    fontWeight: "700",
   },
   emptyState: {
     alignItems: "center",
@@ -580,15 +623,17 @@ const styles = StyleSheet.create({
   categoryToggleContainer: {
     flexDirection: "row",
     backgroundColor: "#F3F4F6",
-    borderRadius: moderateScale(12),
+    borderRadius: moderateScale(15),
     marginTop: verticalScale(16),
     padding: scale(4),
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   categoryTab: {
     flex: 1,
-    paddingVertical: verticalScale(8),
+    paddingVertical: verticalScale(10),
     alignItems: "center",
-    borderRadius: moderateScale(8),
+    borderRadius: moderateScale(12),
   },
   activeCategoryTab: {
     backgroundColor: "#FFFFFF",
@@ -600,11 +645,143 @@ const styles = StyleSheet.create({
   },
   categoryTabText: {
     fontSize: moderateScale(14),
-    fontWeight: "500",
+    fontWeight: "600",
     color: "#6B7280",
   },
   activeCategoryTabText: {
     color: "#D11B31",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: moderateScale(30),
+    borderTopRightRadius: moderateScale(30),
+    paddingHorizontal: scale(24),
+    paddingTop: verticalScale(20),
+    paddingBottom: verticalScale(40),
+    maxHeight: "85%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: verticalScale(24),
+  },
+  modalTitle: {
+    fontSize: moderateScale(20),
+    fontWeight: "700",
+    color: "#111827",
+  },
+  modalProfileSection: {
+    alignItems: "center",
+    marginBottom: verticalScale(30),
+  },
+  modalAvatar: {
+    width: moderateScale(80),
+    height: moderateScale(80),
+    borderRadius: moderateScale(40),
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: verticalScale(16),
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  modalAvatarText: {
+    fontSize: moderateScale(28),
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  modalName: {
+    fontSize: moderateScale(22),
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: verticalScale(4),
+  },
+  modalRole: {
+    fontSize: moderateScale(14),
+    color: "#D11B31",
     fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  modalInfoSection: {
+    gap: verticalScale(20),
+    marginBottom: verticalScale(30),
+  },
+  modalInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scale(16),
+  },
+  modalInfoTextContainer: {
+    flex: 1,
+  },
+  modalLabel: {
+    fontSize: moderateScale(12),
+    color: "#6B7280",
+    marginBottom: verticalScale(2),
+  },
+  modalValue: {
+    fontSize: moderateScale(16),
+    color: "#111827",
+    fontWeight: "500",
+  },
+  inventorySection: {
+    marginTop: verticalScale(10),
+  },
+  inventoryTitle: {
+    fontSize: moderateScale(16),
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: verticalScale(12),
+  },
+  inventoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: scale(10),
+  },
+  inventoryItem: {
+    backgroundColor: "#F9FAFB",
+    padding: scale(12),
+    borderRadius: moderateScale(12),
+    width: "47%",
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+  },
+  inventoryBloodType: {
+    fontSize: moderateScale(14),
+    fontWeight: "700",
+    color: "#D11B31",
+    marginBottom: verticalScale(2),
+  },
+  inventoryUnits: {
+    fontSize: moderateScale(12),
+    color: "#6B7280",
+  },
+  modalChatBtn: {
+    backgroundColor: "#D11B31",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: verticalScale(14),
+    borderRadius: moderateScale(15),
+    gap: scale(8),
+    shadowColor: "#D11B31",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  modalChatBtnText: {
+    color: "#FFFFFF",
+    fontSize: moderateScale(16),
+    fontWeight: "700",
   },
 })

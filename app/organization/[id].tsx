@@ -98,11 +98,15 @@ export default function OrganizationDetailScreen() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#111827" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Organization Details</Text>
-                <View style={{ width: 40 }} />
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TouchableOpacity onPress={() => router.back()} style={{ padding: 4, marginLeft: -4, marginRight: scale(8) }}>
+                        <Ionicons name="chevron-back" size={28} color="#D11B31" />
+                    </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.title}>Organization Details</Text>
+                        <Text style={styles.subtitle}>View information and blood availability</Text>
+                    </View>
+                </View>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -222,25 +226,22 @@ const styles = StyleSheet.create({
         backgroundColor: "#F9FAFB",
     },
     header: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
+        paddingHorizontal: scale(20),
         paddingTop: verticalScale(60),
-        paddingHorizontal: scale(16),
-        paddingBottom: verticalScale(16),
+        paddingBottom: verticalScale(20),
         backgroundColor: "#FFFFFF",
         borderBottomWidth: 1,
         borderBottomColor: "#E5E7EB",
     },
-    backButton: {
-        width: 40,
-        height: 40,
-        justifyContent: "center",
-    },
-    headerTitle: {
-        fontSize: moderateScale(18),
-        fontWeight: "700",
+    title: {
+        fontSize: moderateScale(22),
+        fontWeight: "900",
         color: "#111827",
+    },
+    subtitle: {
+        fontSize: moderateScale(13),
+        color: "#6B7280",
+        marginTop: 2,
     },
     scrollContent: {
         padding: scale(16),

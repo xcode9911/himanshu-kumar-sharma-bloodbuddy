@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native"
 import DonationStatusModal from "../../components/DonationStatusModal"
+import Navigation from "../../components/Navigation"
 import { API_ENDPOINTS } from "../../config/api"
 import { moderateScale, scale, verticalScale } from "../../utils/responsive"
 
@@ -475,6 +476,8 @@ export default function ProfileScreen() {
           {...statusModalData}
         />
       </ScrollView>
+
+      <Navigation userType={userData?.role as any || "donor"} initialTab="profile" />
     </View>
   )
 }

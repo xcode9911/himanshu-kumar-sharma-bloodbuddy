@@ -21,6 +21,14 @@ export default function BookingsScreen() {
     const [userRole, setUserRole] = useState<string>("");
     const router = useRouter();
 
+    const handleBack = () => {
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace("/home");
+        }
+    };
+
     useEffect(() => {
         fetchBookings();
         setupSocket();
@@ -60,7 +68,8 @@ export default function BookingsScreen() {
                     units: r.Units,
                     timestamp: r.RequestDate,
                     status: r.Status || "Pending",
-                    phone: r.gainer?.user?.Phone || "N/A"
+                    phone: r.gainer?.user?.Phone || "N/A",
+                    payments: r.payments || []
                 }))];
             }
 
@@ -240,6 +249,21 @@ export default function BookingsScreen() {
                             </Text>
                         </View>
                     )}
+
+                    {isOrg && item.payments && item.payments.length > 0 && (
+                        <View style={styles.paymentInfoBlock}>
+                            <View style={styles.paymentInfoHeader}>
+                                <Ionicons name="card" size={16} color="#059669" />
+                                <Text style={styles.paymentInfoTitle}>Payment Received</Text>
+                            </View>
+                            {item.payments.map((p: any, idx: number) => (
+                                <View key={idx} style={styles.paymentDetailRow}>
+                                    <Text style={styles.paymentAmountText}>₹{p.Amount} via {p.Provider}</Text>
+                                    <Text style={styles.paymentIdText}>ID: {p.TransactionId || p.Token}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    )}
                 </View>
 
                 {isOrg && (status === "pending") && (
@@ -267,7 +291,15 @@ export default function BookingsScreen() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <Text style={styles.title}>Bookings Record</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TouchableOpacity onPress={handleBack} style={{ padding: 4, marginLeft: -4, marginRight: scale(8) }}>
+                        <Ionicons name="chevron-back" size={28} color="#D11B31" />
+                    </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.title}>Bookings Record</Text>
+                        <Text style={styles.subtitle}>Your blood requests and donation history</Text>
+                    </View>
+                </View>
             </View>
 
             {loading && !bookings.length ? (
@@ -303,22 +335,25 @@ const styles = StyleSheet.create({
         backgroundColor: "#F8F9FA",
     },
     header: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
         paddingHorizontal: scale(20),
         paddingTop: verticalScale(60),
         paddingBottom: verticalScale(20),
         backgroundColor: "#fff",
         borderBottomWidth: 1,
-        borderBottomColor: "#F3F4F6",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.03,
-        shadowRadius: 10,
-        elevation: 2,
+        borderBottomColor: "#E5E7EB",
     },
     title: {
-        fontSize: moderateScale(24),
+        fontSize: moderateScale(22),
         fontWeight: "900",
         color: "#111827",
+    },
+    subtitle: {
+        fontSize: moderateScale(13),
+        color: "#6B7280",
+        marginTop: 2,
     },
     nameRow: {
         flexDirection: 'row',
@@ -525,5 +560,39 @@ const styles = StyleSheet.create({
         color: "#9CA3AF",
         textAlign: "center",
         lineHeight: moderateScale(20),
+    },
+    paymentInfoBlock: {
+        marginTop: verticalScale(14),
+        backgroundColor: '#F0FDF4',
+        borderRadius: moderateScale(12),
+        padding: scale(12),
+        borderWidth: 1,
+        borderColor: '#DCFCE7',
+    },
+    paymentInfoHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: scale(6),
+        marginBottom: verticalScale(8),
+    },
+    paymentInfoTitle: {
+        fontSize: moderateScale(13),
+        fontWeight: '700',
+        color: '#166534',
+    },
+    paymentDetailRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: verticalScale(4),
+    },
+    paymentAmountText: {
+        fontSize: moderateScale(12),
+        fontWeight: '600',
+        color: '#111827',
+    },
+    paymentIdText: {
+        fontSize: moderateScale(10),
+        color: '#6B7280',
     },
 });

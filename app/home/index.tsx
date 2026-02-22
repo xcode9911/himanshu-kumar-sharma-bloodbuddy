@@ -19,12 +19,15 @@ import AppointmentsSvg from "../../assets/images/appointments.svg";
 import CampSvg from "../../assets/images/camp.svg";
 import HistorySvg from "../../assets/images/donation-history.svg";
 import DonationSvg from "../../assets/images/donation.svg";
+import PaymentSvg from "../../assets/images/payment.svg";
 import ScheduleSvg from "../../assets/images/schedule.svg";
 import AddInventoryModal from "../../components/AddInventoryModal";
 import AppointmentsModal from "../../components/AppointmentsModal";
 import EsewaPaymentModal from "../../components/EsewaPaymentModal";
 import KhaltiPaymentModal from "../../components/KhaltiPaymentModal";
+import Navigation from "../../components/Navigation";
 import QuickDonationModal from "../../components/QuickDonationModal";
+import ReceivedPaymentsModal from "../../components/ReceivedPaymentsModal";
 import { API_ENDPOINTS } from "../../config/api";
 import { connectSocket, getSocket } from "../../config/socket";
 import { moderateScale, scale, verticalScale } from "../../utils/responsive";
@@ -38,7 +41,8 @@ type QuickActionIcon =
   | "history"
   | "camp"
   | "add-inventory"
-  | "appointments";
+  | "appointments"
+  | "payment";
 
 interface QuickAction {
   icon: QuickActionIcon;
@@ -69,6 +73,7 @@ export default function Home() {
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   const [esewaModalVisible, setEsewaModalVisible] = useState(false);
   const [paymentBooking, setPaymentBooking] = useState<any>(null);
+  const [receivedPaymentsModalVisible, setReceivedPaymentsModalVisible] = useState(false);
 
   // Bookings Data
   const [bookings, setBookings] = useState<any[]>([]);
@@ -404,6 +409,7 @@ export default function Home() {
           { icon: "add-inventory", label: "Add", route: "/add-blood", color: "#D11B31" },
           { icon: "donation", label: "Requests", route: "/schedule", color: "#F77F00" },
           { icon: "appointments", label: "Appointment", route: "/bookings", color: "#6366F1" },
+          { icon: "payment", label: "Payments", route: "/payments", color: "#10B981" },
           { icon: "camp", label: "Camp", route: "/campaign", color: "#10B981" },
         ];
     }
@@ -431,358 +437,383 @@ export default function Home() {
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <TouchableOpacity onPress={() => router.push("/profile")} activeOpacity={0.8}>
-        <ImageBackground
-          source={require("../../assets/images/background.png")}
-          style={styles.header}
-          imageStyle={styles.headerImage}
-        >
-          <View style={styles.headerOverlay} />
-          <View style={styles.headerContent}>
-            <View style={styles.headerTop}>
-              <View>
-                <Text style={styles.greeting}>{getGreeting()}!</Text>
-                <Text style={styles.userName}>{userName}</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.notificationIconButton}
-                onPress={() => {
-                  setUnreadNotifications(0);
-                  router.push("/notifications");
-                }}
-              >
-                <View style={styles.iconContainer}>
-                  <Ionicons name="notifications-outline" size={moderateScale(24)} color="#FFFFFF" />
-                  {unreadNotifications > 0 && (
-                    <View style={styles.badgeContainer}>
-                      <Text style={styles.badgeText}>{unreadNotifications}</Text>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.welcomeMessage}>{getWelcomeMessage()}</Text>
-
-            {userType !== "gainer" ? (
-              <View style={styles.headerStatsRow}>
-                <View style={styles.headerStatItem}>
-                  <Text style={styles.headerStatValue}>
-                    {userType === "donor" ? "3" : "245"}
-                  </Text>
-                  <Text style={styles.headerStatLabel}>
-                    {userType === "donor" ? "Donations" : "Units"}
-                  </Text>
-                </View>
-                <View style={styles.headerStatDivider} />
-                <View style={styles.headerStatItem}>
-                  <Text style={styles.headerStatValue}>A+</Text>
-                  <Text style={styles.headerStatLabel}>My Blood</Text>
-                </View>
-                <View style={styles.headerStatDivider} />
-                <View style={styles.headerStatItem}>
-                  <Text style={styles.headerStatValue}>
-                    {userType === "donor" ? "45" : "15"}
-                  </Text>
-                  <Text style={styles.headerStatLabel}>
-                    {userType === "donor" ? "Days Left" : "Today"}
-                  </Text>
-                </View>
-              </View>
-            ) : (
-              <Animated.View style={[styles.gainerHeaderPromo, { opacity: fadeAnim, transform: [{ scale: slideAnim }] }]}>
-                <View style={styles.avatarGroup}>
-                  {mockBubbles.slice(0, 4).map((bubble, index) => (
-                    <Animated.View
-                      key={bubble.id}
-                      style={[
-                        styles.avatarCircle,
-                        {
-                          backgroundColor: bubble.color,
-                          zIndex: 10 - index,
-                          marginLeft: index === 0 ? 0 : -scale(15),
-                          opacity: staggeredAnims[index],
-                          transform: [
-                            { scale: staggeredAnims[index] },
-                            {
-                              translateX: staggeredAnims[index].interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [20, 0]
-                              })
-                            }
-                          ]
-                        }
-                      ]}
-                    >
-                      <Text style={styles.avatarText}>{bubble.initials}</Text>
-                    </Animated.View>
-                  ))}
-                  <Animated.View
-                    style={[
-                      styles.avatarCircle,
-                      styles.moreCircle,
-                      {
-                        zIndex: 0,
-                        marginLeft: -scale(15),
-                        opacity: staggeredAnims[4],
-                        transform: [{ scale: staggeredAnims[4] }]
-                      }
-                    ]}
-                  >
-                    <Text style={styles.avatarText}>+42</Text>
-                  </Animated.View>
-                </View>
-                <View style={styles.activeInfoContainer}>
-                  <Text style={styles.activeDonorsTitle}>42 Active Donors</Text>
-                  <Text style={styles.activeDonorsSub}>Ready to help in your current location</Text>
-                </View>
-              </Animated.View>
-            )}
-          </View>
-        </ImageBackground>
-      </TouchableOpacity>
-
-      {/* Banner Section */}
-      <View style={styles.section}>
-        <View style={styles.bannerContainer}>
-          <ScrollView
-            ref={bannerScrollRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={handleBannerMomentum}
-            style={[styles.bannerSlider, { width: bannerWidth }]}
+    <View style={{ flex: 1 }}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <TouchableOpacity onPress={() => router.push("/profile")} activeOpacity={0.8}>
+          <ImageBackground
+            source={require("../../assets/images/background.png")}
+            style={styles.header}
+            imageStyle={styles.headerImage}
           >
-            {activeCampaigns.length > 0 ? (
-              activeCampaigns.map((campaign, index) => (
-                <TouchableOpacity
-                  key={campaign.id || index}
-                  style={[styles.bannerSlide, { width: bannerWidth }]}
-                  activeOpacity={0.9}
-                  onPress={() => router.push("/campaign")}
-                >
-                  <Image
-                    source={{ uri: campaign.posterUrl }}
-                    style={styles.bannerImage}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.campaignOverlay}>
-                    <Text style={styles.campaignTitle} numberOfLines={1}>{campaign.title}</Text>
-                    <Text style={styles.campaignOrg} numberOfLines={1}>{campaign.organizationName}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))
-            ) : (
-              bannerImages.map((source, index) => (
-                <View key={index} style={[styles.bannerSlide, { width: bannerWidth }]}>
-                  <Image source={source} style={styles.bannerImage} resizeMode="cover" />
+            <View style={styles.headerOverlay} />
+            <View style={styles.headerContent}>
+              <View style={styles.headerTop}>
+                <View>
+                  <Text style={styles.greeting}>{getGreeting()}!</Text>
+                  <Text style={styles.userName}>{userName}</Text>
                 </View>
-              ))
-            )}
-          </ScrollView>
-          <View style={styles.bannerDots}>
-            {(activeCampaigns.length > 0 ? activeCampaigns : bannerImages).map((_, idx) => (
-              <View key={idx} style={[styles.bannerDot, idx === bannerIndex && styles.bannerDotActive]} />
-            ))}
-          </View>
-        </View>
-      </View>
-
-      {/* Quick Actions */}
-      {userType !== "gainer" && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.quickActionsContainer}>
-            <View style={styles.quickActionsGrid}>
-              {getQuickActions().map((action, index) => (
                 <TouchableOpacity
-                  key={index}
-                  style={styles.quickActionItem}
-                  activeOpacity={0.85}
+                  style={styles.notificationIconButton}
                   onPress={() => {
-                    if (userType === "organization" && action.icon === "add-inventory") {
-                      setAddInventoryModalVisible(true);
-                      return;
-                    }
-                    if (userType === "donor" && action.icon === "donation") {
-                      setDonationModalVisible(true);
-                      return;
-                    }
-                    if (userType === "organization" && action.icon === "appointments") {
-                      setAppointmentsModalVisible(true);
-                      return;
-                    }
-                    router.push(action.route as any);
+                    setUnreadNotifications(0);
+                    router.push("/notifications");
                   }}
                 >
-                  <View style={styles.quickActionIcon}>
-                    {action.icon === "donation" ? (
-                      <DonationSvg width={moderateScale(30)} height={moderateScale(30)} />
-                    ) : action.icon === "schedule" ? (
-                      <ScheduleSvg width={moderateScale(30)} height={moderateScale(30)} />
-                    ) : action.icon === "history" ? (
-                      <HistorySvg width={moderateScale(30)} height={moderateScale(30)} />
-                    ) : action.icon === "camp" ? (
-                      <CampSvg width={moderateScale(30)} height={moderateScale(30)} />
-                    ) : action.icon === "add-inventory" ? (
-                      <AddInventorySvg width={moderateScale(30)} height={moderateScale(30)} />
-                    ) : action.icon === "appointments" ? (
-                      <AppointmentsSvg width={moderateScale(30)} height={moderateScale(30)} />
-                    ) : (
-                      <Ionicons name={action.icon as any} size={moderateScale(28)} color={action.color} />
-                    )}
-                  </View>
-                  <Text style={styles.quickActionLabel} numberOfLines={2}>{action.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* Appreciation Quote */}
-      {userType !== "organization" && (
-        <View style={styles.quoteSection}>
-          <View style={styles.quoteCard}>
-            <Text style={styles.quoteText}>
-              "Let’s take a moment to appreciate you — because your kindness saves lives."
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* Viral Bubbles Animation for Gainer Removed and Integrated Into Header */}
-
-      {/* My Bookings Section */}
-      {userType === "gainer" && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>My Bookings</Text>
-          {loadingBookings ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.activityTime}>Loading bookings...</Text>
-            </View>
-          ) : bookings.length > 0 ? (
-            <View style={styles.bookingsList}>
-              {bookings.map((booking, index) => (
-                <View key={`${booking.type}-${booking.requestId}` || index} style={styles.bookingCard}>
-                  <View style={styles.bookingCardHeader}>
-                    <View style={styles.bloodBadge}>
-                      <Text style={styles.bloodBadgeText}>{booking.bloodType}</Text>
-                    </View>
-                    <View style={styles.bookingInfo}>
-                      <Text style={styles.orgNameLabel}>{booking.userName || "Hospital/Bank"}</Text>
-                      <Text style={styles.bookingDate}>
-                        {new Date(booking.createdAt).toLocaleDateString()}
-                      </Text>
-                    </View>
-                    <View style={[
-                      styles.statusBadge,
-                      { backgroundColor: booking.status === 'approved' ? '#ECFDF5' : booking.status === 'rejected' ? '#FEF2F2' : '#FFFBEB' }
-                    ]}>
-                      <Text style={[
-                        styles.statusText,
-                        { color: booking.status === 'approved' ? '#059669' : booking.status === 'rejected' ? '#DC2626' : '#D97706' }
-                      ]}>
-                        {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.bookingCardFooter}>
-                    <Text style={styles.unitsCount}>{booking.units} Units Requested</Text>
-                    {booking.status === 'pending' && (
-                      <TouchableOpacity
-                        style={styles.cancelButton}
-                        onPress={() => handleCancelBooking(booking.requestId)}
-                      >
-                        <Text style={styles.cancelButtonText}>Cancel</Text>
-                      </TouchableOpacity>
-                    )}
-                    {booking.status === 'approved' && (
-                      <View style={styles.paymentActions}>
-                        <TouchableOpacity
-                          style={[styles.payButton]}
-                          onPress={() => handlePayNow(booking)}
-                        >
-                          <Image
-                            source={require('../../assets/images/khalti-logo.png')}
-                            style={styles.khaltiLogo}
-                          />
-                          <Text style={[styles.payButtonText]}>
-                            {booking.paymentStatus === 'Paid' ? 'Paid' : 'Pay Now'}
-                          </Text>
-                        </TouchableOpacity>
-
-                        {booking.paymentStatus !== 'Paid' && (
-                          <TouchableOpacity
-                            style={[styles.esewaButton]}
-                            onPress={() => handleEsewaPay(booking)}
-                          >
-                            <Image
-                              source={require('../../assets/images/esewa-logo.png')}
-                              style={styles.esewaLogo}
-                            />
-                            <Text style={[styles.esewaButtonText]}>Pay Now</Text>
-                          </TouchableOpacity>
-                        )}
+                  <View style={styles.iconContainer}>
+                    <Ionicons name="notifications-outline" size={moderateScale(24)} color="#FFFFFF" />
+                    {unreadNotifications > 0 && (
+                      <View style={styles.badgeContainer}>
+                        <Text style={styles.badgeText}>{unreadNotifications}</Text>
                       </View>
                     )}
                   </View>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.welcomeMessage}>{getWelcomeMessage()}</Text>
+
+              {userType !== "gainer" ? (
+                <View style={styles.headerStatsRow}>
+                  <View style={styles.headerStatItem}>
+                    <Text style={styles.headerStatValue}>
+                      {userType === "donor" ? "3" : "245"}
+                    </Text>
+                    <Text style={styles.headerStatLabel}>
+                      {userType === "donor" ? "Donations" : "Units"}
+                    </Text>
+                  </View>
+                  <View style={styles.headerStatDivider} />
+                  <View style={styles.headerStatItem}>
+                    <Text style={styles.headerStatValue}>A+</Text>
+                    <Text style={styles.headerStatLabel}>My Blood</Text>
+                  </View>
+                  <View style={styles.headerStatDivider} />
+                  <View style={styles.headerStatItem}>
+                    <Text style={styles.headerStatValue}>
+                      {userType === "donor" ? "45" : "15"}
+                    </Text>
+                    <Text style={styles.headerStatLabel}>
+                      {userType === "donor" ? "Days Left" : "Today"}
+                    </Text>
+                  </View>
                 </View>
+              ) : (
+                <Animated.View style={[styles.gainerHeaderPromo, { opacity: fadeAnim, transform: [{ scale: slideAnim }] }]}>
+                  <View style={styles.avatarGroup}>
+                    {mockBubbles.slice(0, 4).map((bubble, index) => (
+                      <Animated.View
+                        key={bubble.id}
+                        style={[
+                          styles.avatarCircle,
+                          {
+                            backgroundColor: bubble.color,
+                            zIndex: 10 - index,
+                            marginLeft: index === 0 ? 0 : -scale(15),
+                            opacity: staggeredAnims[index],
+                            transform: [
+                              { scale: staggeredAnims[index] },
+                              {
+                                translateX: staggeredAnims[index].interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: [20, 0]
+                                })
+                              }
+                            ]
+                          }
+                        ]}
+                      >
+                        <Text style={styles.avatarText}>{bubble.initials}</Text>
+                      </Animated.View>
+                    ))}
+                    <Animated.View
+                      style={[
+                        styles.avatarCircle,
+                        styles.moreCircle,
+                        {
+                          zIndex: 0,
+                          marginLeft: -scale(15),
+                          opacity: staggeredAnims[4],
+                          transform: [{ scale: staggeredAnims[4] }]
+                        }
+                      ]}
+                    >
+                      <Text style={styles.avatarText}>+42</Text>
+                    </Animated.View>
+                  </View>
+                  <View style={styles.activeInfoContainer}>
+                    <Text style={styles.activeDonorsTitle}>42 Active Donors</Text>
+                    <Text style={styles.activeDonorsSub}>Ready to help in your current location</Text>
+                  </View>
+                </Animated.View>
+              )}
+            </View>
+          </ImageBackground>
+        </TouchableOpacity>
+
+        {/* Banner Section */}
+        <View style={styles.section}>
+          <View style={styles.bannerContainer}>
+            <ScrollView
+              ref={bannerScrollRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={handleBannerMomentum}
+              style={[styles.bannerSlider, { width: bannerWidth }]}
+            >
+              {activeCampaigns.length > 0 ? (
+                activeCampaigns.map((campaign, index) => (
+                  <TouchableOpacity
+                    key={campaign.id || index}
+                    style={[styles.bannerSlide, { width: bannerWidth }]}
+                    activeOpacity={0.9}
+                    onPress={() => router.push("/campaign")}
+                  >
+                    <Image
+                      source={{ uri: campaign.posterUrl }}
+                      style={styles.bannerImage}
+                      resizeMode="cover"
+                    />
+                    <View style={styles.campaignOverlay}>
+                      <Text style={styles.campaignTitle} numberOfLines={1}>{campaign.title}</Text>
+                      <Text style={styles.campaignOrg} numberOfLines={1}>{campaign.organizationName}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                bannerImages.map((source, index) => (
+                  <View key={index} style={[styles.bannerSlide, { width: bannerWidth }]}>
+                    <Image source={source} style={styles.bannerImage} resizeMode="cover" />
+                  </View>
+                ))
+              )}
+            </ScrollView>
+            <View style={styles.bannerDots}>
+              {(activeCampaigns.length > 0 ? activeCampaigns : bannerImages).map((_, idx) => (
+                <View key={idx} style={[styles.bannerDot, idx === bannerIndex && styles.bannerDotActive]} />
               ))}
             </View>
-          ) : (
-            <View style={styles.activityCard}>
-              <Text style={styles.emptyText}>You haven't made any blood bookings yet.</Text>
-            </View>
-          )}
+          </View>
         </View>
-      )}
 
-      <AddInventoryModal
-        visible={addInventoryModalVisible}
-        onClose={() => setAddInventoryModalVisible(false)}
-        onSuccess={handleAddInventorySuccess}
-        bloodType={inventoryBloodType}
-        setBloodType={setInventoryBloodType}
-        units={inventoryUnits}
-        setUnits={setInventoryUnits}
-        bloodTypes={BLOOD_TYPES}
-      />
+        {/* Quick Actions */}
+        {userType !== "gainer" && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <View style={styles.quickActionsContainer}>
+              <View style={styles.quickActionsGrid}>
+                {getQuickActions().map((action, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.quickActionItem}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      if (userType === "organization" && action.icon === "add-inventory") {
+                        setAddInventoryModalVisible(true);
+                        return;
+                      }
+                      if (userType === "donor" && (action.icon === "donation" || action.label === "Donate")) {
+                        setDonationModalVisible(true);
+                        return;
+                      }
+                      if (userType === "organization" && (action.icon === "appointments" || action.label === "Appointment")) {
+                        setAppointmentsModalVisible(true);
+                        return;
+                      }
+                      if (action.label === "Payments") {
+                        setReceivedPaymentsModalVisible(true);
+                        return;
+                      }
+                      router.push(action.route as any);
+                    }}
+                  >
+                    <View style={styles.quickActionIcon}>
+                      {action.icon === "donation" ? (
+                        <DonationSvg width={moderateScale(30)} height={moderateScale(30)} />
+                      ) : action.icon === "schedule" ? (
+                        <ScheduleSvg width={moderateScale(30)} height={moderateScale(30)} />
+                      ) : action.icon === "history" ? (
+                        <HistorySvg width={moderateScale(30)} height={moderateScale(30)} />
+                      ) : action.icon === "camp" ? (
+                        <CampSvg width={moderateScale(30)} height={moderateScale(30)} />
+                      ) : action.icon === "add-inventory" ? (
+                        <AddInventorySvg width={moderateScale(30)} height={moderateScale(30)} />
+                      ) : action.icon === "appointments" ? (
+                        <AppointmentsSvg width={moderateScale(30)} height={moderateScale(30)} />
+                      ) : action.icon === "payment" ? (
+                        <PaymentSvg width={moderateScale(30)} height={moderateScale(30)} />
+                      ) : (
+                        <Ionicons name={action.icon as any} size={moderateScale(28)} color={action.color} />
+                      )}
+                    </View>
+                    <Text style={styles.quickActionLabel} numberOfLines={2}>{action.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
 
-      <QuickDonationModal
-        visible={donationModalVisible}
-        onClose={() => setDonationModalVisible(false)}
-        donorBloodType={donorBloodType}
-      />
+        {/* Appreciation Quote */}
+        {userType === "donor" && (
+          <View style={styles.quoteSection}>
+            <View style={styles.quoteCard}>
+              <Text style={styles.quoteText}>
+                "Let’s take a moment to appreciate you — because your kindness saves lives."
+              </Text>
+            </View>
+          </View>
+        )}
 
-      <AppointmentsModal
-        visible={appointmentsModalVisible}
-        onClose={() => setAppointmentsModalVisible(false)}
-        bookings={bookings}
-        onPay={handlePayNow}
-      />
+        {/* Viral Bubbles Animation for Gainer Removed and Integrated Into Header */}
 
-      <KhaltiPaymentModal
-        visible={paymentModalVisible}
-        onClose={() => setPaymentModalVisible(false)}
-        onSuccess={handlePaymentSuccess}
-        requestId={paymentBooking?.requestId}
-        amount={1000} // Hardcoded 1000 NPR
-        productName={`Blood Request #${paymentBooking?.requestId}`}
-      />
+        {/* My Bookings Section */}
+        {userType === "gainer" && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>My Bookings</Text>
+            {loadingBookings ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.activityTime}>Loading bookings...</Text>
+              </View>
+            ) : bookings.length > 0 ? (
+              <View style={styles.bookingsList}>
+                {bookings.slice(0, 2).map((booking, index) => (
+                  <View key={`${booking.type}-${booking.requestId}` || index} style={styles.bookingCard}>
+                    <View style={styles.bookingCardHeader}>
+                      <View style={styles.bloodBadge}>
+                        <Text style={styles.bloodBadgeText}>{booking.bloodType}</Text>
+                      </View>
+                      <View style={styles.bookingInfo}>
+                        <Text style={styles.orgNameLabel}>{booking.userName || "Hospital/Bank"}</Text>
+                        <Text style={styles.bookingDate}>
+                          {new Date(booking.createdAt).toLocaleDateString()}
+                        </Text>
+                      </View>
+                      <View style={[
+                        styles.statusBadge,
+                        { backgroundColor: booking.status === 'approved' ? '#ECFDF5' : booking.status === 'rejected' ? '#FEF2F2' : '#FFFBEB' }
+                      ]}>
+                        <Text style={[
+                          styles.statusText,
+                          { color: booking.status === 'approved' ? '#059669' : booking.status === 'rejected' ? '#DC2626' : '#D97706' }
+                        ]}>
+                          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.bookingCardFooter}>
+                      <Text style={styles.unitsCount}>{booking.units} Units Requested</Text>
+                      {booking.status === 'pending' && (
+                        <TouchableOpacity
+                          style={styles.cancelButton}
+                          onPress={() => handleCancelBooking(booking.requestId)}
+                        >
+                          <Text style={styles.cancelButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                      )}
+                      {booking.status === 'approved' && (
+                        <View style={styles.paymentActions}>
+                          <TouchableOpacity
+                            style={[styles.payButton]}
+                            onPress={() => handlePayNow(booking)}
+                          >
+                            <Image
+                              source={require('../../assets/images/khalti-logo.png')}
+                              style={styles.khaltiLogo}
+                            />
+                            <Text style={[styles.payButtonText]}>
+                              {booking.paymentStatus === 'Paid' ? 'Paid' : 'Pay Now'}
+                            </Text>
+                          </TouchableOpacity>
 
-      <EsewaPaymentModal
-        visible={esewaModalVisible}
-        onClose={() => setEsewaModalVisible(false)}
-        onSuccess={handlePaymentSuccess}
-        requestId={paymentBooking?.requestId}
-        amount={1000}
-      />
+                          {booking.paymentStatus !== 'Paid' && (
+                            <TouchableOpacity
+                              style={[styles.esewaButton]}
+                              onPress={() => handleEsewaPay(booking)}
+                            >
+                              <Image
+                                source={require('../../assets/images/esewa-logo.png')}
+                                style={styles.esewaLogo}
+                              />
+                              <Text style={[styles.esewaButtonText]}>Pay Now</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                ))}
+                {bookings.length > 2 && (
+                  <TouchableOpacity
+                    style={styles.viewMoreButton}
+                    onPress={() => router.push("/bookings")}
+                  >
+                    <Text style={styles.viewMoreText}>View More</Text>
+                    <Ionicons name="chevron-forward" size={moderateScale(16)} color="#D11B31" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <View style={styles.activityCard}>
+                <Text style={styles.emptyText}>You haven't made any blood bookings yet.</Text>
+              </View>
+            )}
+          </View>
+        )}
 
-      <View style={styles.bottomSpacer} />
-    </ScrollView>
+        <AddInventoryModal
+          visible={addInventoryModalVisible}
+          onClose={() => setAddInventoryModalVisible(false)}
+          onSuccess={handleAddInventorySuccess}
+          bloodType={inventoryBloodType}
+          setBloodType={setInventoryBloodType}
+          units={inventoryUnits}
+          setUnits={setInventoryUnits}
+          bloodTypes={BLOOD_TYPES}
+        />
+
+        <QuickDonationModal
+          visible={donationModalVisible}
+          onClose={() => setDonationModalVisible(false)}
+          donorBloodType={donorBloodType}
+        />
+
+        <AppointmentsModal
+          visible={appointmentsModalVisible}
+          onClose={() => setAppointmentsModalVisible(false)}
+          bookings={bookings}
+          onPay={handlePayNow}
+        />
+
+        <KhaltiPaymentModal
+          visible={paymentModalVisible}
+          onClose={() => setPaymentModalVisible(false)}
+          onSuccess={handlePaymentSuccess}
+          requestId={paymentBooking?.requestId}
+          amount={1000} // Hardcoded 1000 NPR
+          productName={`Blood Request #${paymentBooking?.requestId}`}
+        />
+
+        <EsewaPaymentModal
+          visible={esewaModalVisible}
+          onClose={() => setEsewaModalVisible(false)}
+          onSuccess={handlePaymentSuccess}
+          requestId={paymentBooking?.requestId}
+          amount={1000}
+        />
+
+        <ReceivedPaymentsModal
+          visible={receivedPaymentsModalVisible}
+          onClose={() => setReceivedPaymentsModalVisible(false)}
+        />
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
+
+      <Navigation userType={userType} initialTab="home" />
+    </View>
   );
 }
+
+
 
 const styles = StyleSheet.create({
   container: {
@@ -1230,5 +1261,18 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: verticalScale(100),
+  },
+  viewMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: verticalScale(12),
+    paddingVertical: verticalScale(8),
+  },
+  viewMoreText: {
+    fontSize: moderateScale(14),
+    fontWeight: "600",
+    color: "#D11B31",
+    marginRight: scale(4),
   },
 });

@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useRouter } from "expo-router"
 import { useState } from "react"
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native"
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native"
 import { API_ENDPOINTS } from "../../../config/api"
 
 export default function LoginScreen() {
@@ -67,23 +67,23 @@ export default function LoginScreen() {
       if (data.token) {
         await AsyncStorage.setItem("authToken", data.token)
       }
-      
+
       // Store user data (handle different response structures)
       const userData = data.user || data.data || data
       const role = userData.role || userData.type || userData.userType || null
-      
+
       // Extract blood type from nested donor object if available
       let bloodType = userData.bloodType
       if (!bloodType && userData.donor) {
         bloodType = userData.donor.bloodType
       }
-      
+
       // For donors without blood type in response, use a default
       // This will be properly set when user updates their profile
       if (role === 'donor' && !bloodType) {
         bloodType = 'O+' // Default blood type for new donors
       }
-      
+
       await AsyncStorage.setItem("userData", JSON.stringify({
         id: userData.id || userData._id || userData.userId,
         fullName: userData.fullName || userData.name,
@@ -109,7 +109,10 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       {/* ---- Header with Curved Bubble Design ---- */}
       <View style={styles.headerSection}>
         <View style={styles.circle1} />
@@ -206,7 +209,7 @@ export default function LoginScreen() {
           </View>
         </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 

@@ -3,8 +3,8 @@ import { Stack } from 'expo-router';
 export default function ChatLayout() {
   return (
     <Stack>
-      <Stack.Screen 
-        name="index" 
+      <Stack.Screen
+        name="index"
         options={{
           title: "Messages",
           headerStyle: {
@@ -14,6 +14,12 @@ export default function ChatLayout() {
           headerTitleStyle: {
             fontWeight: '600',
           },
+        }}
+      />
+      <Stack.Screen
+        name="conversation"
+        options={{
+          headerShown: false,
         }}
       />
     </Stack>

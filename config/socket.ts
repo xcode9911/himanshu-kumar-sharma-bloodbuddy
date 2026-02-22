@@ -6,7 +6,7 @@ let socket: Socket | null = null;
 export const getSocket = () => {
     if (!socket) {
         socket = io(API_BASE_URL, {
-            transports: ["websocket"], // Recommended for React Native
+            transports: ["websocket"],
             autoConnect: false,
         });
     }
@@ -17,7 +17,7 @@ export const connectSocket = (userId: string) => {
     const s = getSocket();
     if (!s.connected) {
         s.connect();
-        s.on("connect", () => {
+        s.once("connect", () => {
             console.log("Connected to socket server");
             s.emit("join", userId);
         });
@@ -30,5 +30,12 @@ export const disconnectSocket = () => {
     if (socket) {
         socket.disconnect();
         socket = null;
+    }
+};
+
+export const emitPrivateMessage = (receiverId: string, message: string, senderId: string, senderName: string) => {
+    const s = getSocket();
+    if (s.connected) {
+        s.emit("privateMessage", { receiverId, message, senderId, senderName });
     }
 };

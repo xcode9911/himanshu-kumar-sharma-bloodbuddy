@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useRef, useState } from "react"
-import { Alert, Image, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native"
+import { Alert, Image, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native"
 import { API_ENDPOINTS } from "../../../config/api"
 
 export default function OTPScreen() {
@@ -60,7 +60,7 @@ export default function OTPScreen() {
     setOtpTouched(true)
     const otpErr = validateOtp()
     setOtpError(otpErr)
-    
+
     if (otpErr) {
       Alert.alert("Invalid OTP", otpErr)
       return
@@ -144,62 +144,69 @@ export default function OTPScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* iPhone-style Back Icon (top-left) */}
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityLabel="Go back">
-          <Ionicons name="chevron-back" size={26} color="#111827" />
-        </TouchableOpacity>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+          <View style={styles.container}>
+            {/* iPhone-style Back Icon (top-left) */}
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityLabel="Go back">
+              <Ionicons name="chevron-back" size={26} color="#111827" />
+            </TouchableOpacity>
 
-        {/* Center Image */}
-        <View style={styles.imageWrapper}>
-          <Image source={require("../../../assets/images/otp.png")} style={styles.image} resizeMode="contain" />
-        </View>
+            {/* Center Image */}
+            <View style={styles.imageWrapper}>
+              <Image source={require("../../../assets/images/otp.png")} style={styles.image} resizeMode="contain" />
+            </View>
 
-        {/* Title and subtitle */}
-        <Text style={styles.title}>Enter OTP</Text>
-        {!!email && <Text style={styles.subtitle}>We sent a 5-digit code to {email}</Text>}
+            {/* Title and subtitle */}
+            <Text style={styles.title}>Enter OTP</Text>
+            {!!email && <Text style={styles.subtitle}>We sent a 5-digit code to {email}</Text>}
 
-        {/* OTP Bubbles */}
-        <View style={styles.otpCirclesContainer}>
-          {otp.map((digit, index) => (
-            <TextInput
-              key={index}
-              ref={(ref) => {
-                if (ref) {
-                  otpInputRefs.current[index] = ref
-                }
-              }}
-              style={[styles.otpCircle, digit && styles.otpCircleFilled, otpTouched && otpError ? styles.otpCircleError : null]}
-              value={digit}
-              onChangeText={(value) => handleOTPChange(value, index)}
-              onKeyPress={({ nativeEvent }) => handleOTPKeyPress(nativeEvent.key, index)}
-              keyboardType="number-pad"
-              maxLength={1}
-              selectTextOnFocus
-              autoFocus={index === 0}
-            />
-          ))}
-        </View>
-        {otpTouched && !!otpError && <Text style={styles.errorText}>{otpError}</Text>}
+            {/* OTP Bubbles */}
+            <View style={styles.otpCirclesContainer}>
+              {otp.map((digit, index) => (
+                <TextInput
+                  key={index}
+                  ref={(ref) => {
+                    if (ref) {
+                      otpInputRefs.current[index] = ref
+                    }
+                  }}
+                  style={[styles.otpCircle, digit && styles.otpCircleFilled, otpTouched && otpError ? styles.otpCircleError : null]}
+                  value={digit}
+                  onChangeText={(value) => handleOTPChange(value, index)}
+                  onKeyPress={({ nativeEvent }) => handleOTPKeyPress(nativeEvent.key, index)}
+                  keyboardType="number-pad"
+                  maxLength={1}
+                  selectTextOnFocus
+                  autoFocus={index === 0}
+                />
+              ))}
+            </View>
+            {otpTouched && !!otpError && <Text style={styles.errorText}>{otpError}</Text>}
 
-        {/* Verify Button */}
-        <TouchableOpacity
-          style={[styles.verifyButton, (isVerifying || !!validateOtp()) && styles.verifyButtonDisabled]}
-          onPress={handleVerifyOTP}
-          disabled={isVerifying || !!validateOtp()}
-        >
-          <Text style={styles.verifyButtonText}>{isVerifying ? "Verifying..." : "Verify OTP"}</Text>
-        </TouchableOpacity>
+            {/* Verify Button */}
+            <TouchableOpacity
+              style={[styles.verifyButton, (isVerifying || !!validateOtp()) && styles.verifyButtonDisabled]}
+              onPress={handleVerifyOTP}
+              disabled={isVerifying || !!validateOtp()}
+            >
+              <Text style={styles.verifyButtonText}>{isVerifying ? "Verifying..." : "Verify OTP"}</Text>
+            </TouchableOpacity>
 
-        {/* Resend OTP */}
-        {!!email && (
-          <TouchableOpacity style={styles.resendContainer} onPress={handleResendOTP} disabled={isResending}>
-            <Text style={[styles.resendText, isResending && styles.resendTextDisabled]}>
-              {isResending ? "Sending..." : "Resend OTP"}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
+            {/* Resend OTP */}
+            {!!email && (
+              <TouchableOpacity style={styles.resendContainer} onPress={handleResendOTP} disabled={isResending}>
+                <Text style={[styles.resendText, isResending && styles.resendTextDisabled]}>
+                  {isResending ? "Sending..." : "Resend OTP"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   )
 }

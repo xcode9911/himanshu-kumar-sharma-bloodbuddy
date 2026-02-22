@@ -13,6 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native"
+import Navigation from "../../components/Navigation"
 import { API_ENDPOINTS } from "../../config/api"
 import { moderateScale, scale, verticalScale } from "../../utils/responsive"
 
@@ -253,6 +254,8 @@ export default function CampaignListScreen() {
                     ListEmptyComponent={renderEmpty}
                 />
             )}
+
+            <Navigation userType={userRole as any || "donor"} initialTab="chat" />
         </View>
     )
 }

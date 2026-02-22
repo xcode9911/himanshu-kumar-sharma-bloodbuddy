@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import { useRouter } from "expo-router"
 import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
@@ -12,6 +13,9 @@ import {
   View,
 } from "react-native"
 import Navigation from "../../components/Navigation"
+import ProfileModal from "../../components/ProfileModal"
+import { API_BASE_URL, API_ENDPOINTS } from "../../config/api"
+import { connectSocket, getSocket } from "../../config/socket"
 import { moderateScale, scale, verticalScale } from "../../utils/responsive"
 
 type UserType = "gainer" | "donor" | "organization"
@@ -20,11 +24,12 @@ interface Contact {
   id: string
   name: string
   avatar?: string
-  lastMessage: string
-  timestamp: string
-  unread: number
-  status: "online" | "offline"
+  lastMessage?: string
+  timestamp?: string
+  unread?: number
+  isOnline: boolean
   role: string
+  organizationName?: string | null
 }
 
 interface ChatScreenProps {
@@ -32,29 +37,100 @@ interface ChatScreenProps {
 }
 
 export default function ChatScreen({ hideNavigation = false }: ChatScreenProps = {}) {
+  const router = useRouter()
   const [contacts, setContacts] = useState<Contact[]>([])
+  const [donorGroups, setDonorGroups] = useState<{ organizations: Contact[], gainers: Contact[] }>({ organizations: [], gainers: [] })
+  const [orgGroups, setOrgGroups] = useState<{ donors: Contact[], gainers: Contact[] }>({ donors: [], gainers: [] })
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [userType, setUserType] = useState<UserType>("donor")
-  const [activeCategory, setActiveCategory] = useState<"gainer" | "organization">("gainer")
+  const [activeCategory, setActiveCategory] = useState<"gainer" | "organization" | "donor">("gainer")
+  const [selectedUser, setSelectedUser] = useState<any>(null)
+  const [isProfileModalVisible, setIsProfileModalVisible] = useState(false)
+  const [isProfileLoading, setIsProfileLoading] = useState(false)
 
   useEffect(() => {
     loadUserData()
-    loadContacts()
   }, [])
 
   useEffect(() => {
+    loadContacts()
+  }, [userType])
+
+  useEffect(() => {
     filterContacts()
-  }, [searchQuery, contacts, activeCategory])
+  }, [searchQuery, contacts, donorGroups, orgGroups, activeCategory])
+
+  useEffect(() => {
+    const socket = getSocket();
+
+    socket.on("userStatusUpdate", ({ userId, status }: { userId: string, status: "online" | "offline" }) => {
+      const isOnline = status === "online";
+
+      const updateFn = (list: Contact[]) =>
+        list.map(c => c.id === userId ? { ...c, isOnline } : c);
+
+      setContacts(prev => updateFn(prev));
+      setDonorGroups(prev => ({
+        organizations: updateFn(prev.organizations),
+        gainers: updateFn(prev.gainers)
+      }));
+      setOrgGroups(prev => ({
+        donors: updateFn(prev.donors),
+        gainers: updateFn(prev.gainers)
+      }));
+    });
+
+    socket.on("newMessage", (data: any) => {
+      const updateFn = (list: Contact[]) => {
+        const index = list.findIndex(c => c.id === data.senderId);
+        if (index === -1) return list;
+
+        const newList = [...list];
+        newList[index] = {
+          ...newList[index],
+          lastMessage: data.message,
+          timestamp: new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          unread: (newList[index].unread || 0) + 1
+        };
+        // Move to top
+        const contact = newList.splice(index, 1)[0];
+        return [contact, ...newList];
+      };
+
+      setContacts(prev => updateFn(prev));
+      setDonorGroups(prev => ({
+        organizations: updateFn(prev.organizations),
+        gainers: updateFn(prev.gainers)
+      }));
+      setOrgGroups(prev => ({
+        donors: updateFn(prev.donors),
+        gainers: updateFn(prev.gainers)
+      }));
+    });
+
+    return () => {
+      socket.off("userStatusUpdate");
+      socket.off("newMessage");
+    };
+  }, []);
 
   const loadUserData = async () => {
     try {
       const userData = await AsyncStorage.getItem("userData")
       if (userData) {
         const parsed = JSON.parse(userData)
-        setUserType(parsed.role || "donor")
+        const role = (parsed.role || "donor").toLowerCase() as UserType
+        const uid = parsed.userId || parsed.id;
+        setUserType(role)
+        connectSocket(uid);
+
+        // Set default active category based on role
+        if (role === "donor" || role === "organization") {
+          setActiveCategory("gainer")
+        }
       }
     } catch (error) {
       console.log("Error loading user data:", error)
@@ -64,88 +140,73 @@ export default function ChatScreen({ hideNavigation = false }: ChatScreenProps =
   const loadContacts = async () => {
     try {
       setLoading(true)
-      // Mock data for now
-      const mockContacts: Contact[] = [
-        {
-          id: "1",
-          name: "Dr. Rajesh Kumar",
-          lastMessage: "Your blood test results are ready",
-          timestamp: "2 min ago",
-          unread: 2,
-          status: "online",
-          role: "Doctor",
+      const token = await AsyncStorage.getItem("authToken")
+      const response = await fetch(`${API_BASE_URL}/api/chat/contacts`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-        {
-          id: "2",
-          name: "Central Blood Bank",
-          lastMessage: "Thank you for your donation!",
-          timestamp: "1 hour ago",
-          unread: 0,
-          status: "online",
-          role: "Organization",
-        },
-        {
-          id: "3",
-          name: "Priya Sharma",
-          lastMessage: "When can you donate next?",
-          timestamp: "3 hours ago",
-          unread: 1,
-          status: "offline",
-          role: "Recipient",
-        },
-        {
-          id: "4",
-          name: "Apollo Hospitals",
-          lastMessage: "Blood drive scheduled for next week",
-          timestamp: "Yesterday",
-          unread: 0,
-          status: "online",
-          role: "Organization",
-        },
-        {
-          id: "5",
-          name: "Amit Patel",
-          lastMessage: "Thanks for saving my life!",
-          timestamp: "2 days ago",
-          unread: 0,
-          status: "offline",
-          role: "Recipient",
-        },
-        {
-          id: "6",
-          name: "Red Cross Support",
-          lastMessage: "How can we help you today?",
-          timestamp: "3 days ago",
-          unread: 0,
-          status: "online",
-          role: "Organization",
-        },
-        {
-          id: "7",
-          name: "Sneha Gupta",
-          lastMessage: "Emergency blood needed!",
-          timestamp: "1 week ago",
-          unread: 0,
-          status: "offline",
-          role: "Recipient",
-        },
-        {
-          id: "8",
-          name: "City Hospital",
-          lastMessage: "Your eligibility has been approved",
-          timestamp: "1 week ago",
-          unread: 0,
-          status: "online",
-          role: "Organization",
-        },
-      ]
+      })
 
-      setContacts(mockContacts)
-      setFilteredContacts(mockContacts)
+      const contentType = response.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text()
+        console.error("Non-JSON response received:", text.slice(0, 100))
+        throw new Error("Invalid server response")
+      }
+
+      const data = await response.json()
+
+      if (response.ok) {
+        const mapUser = (u: any) => ({
+          id: u.UserId,
+          name: u.FullName,
+          role: u.Role.charAt(0).toUpperCase() + u.Role.slice(1),
+          lastMessage: u.lastMessage,
+          timestamp: u.lastMessageTime ? new Date(u.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
+          unread: u.unreadCount,
+          isOnline: u.isOnline || false,
+          organizationName: u.organizationName
+        })
+
+        if (userType === "donor") {
+          setDonorGroups({
+            organizations: (data.organizations || []).map(mapUser),
+            gainers: (data.gainers || []).map(mapUser)
+          })
+        } else if (userType === "organization") {
+          setOrgGroups({
+            donors: (data.donors || []).map(mapUser),
+            gainers: (data.gainers || []).map(mapUser)
+          })
+        } else if (userType === "gainer") {
+          setContacts((data.contacts || []).map(mapUser))
+        }
+      }
     } catch (error) {
       console.error("Error loading contacts:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleShowProfile = async (userId: string) => {
+    try {
+      setIsProfileLoading(true)
+      const token = await AsyncStorage.getItem("authToken")
+      const response = await fetch(API_ENDPOINTS.GET_PROFILE(userId), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setSelectedUser(data.user)
+        setIsProfileModalVisible(true)
+      }
+    } catch (error) {
+      console.error("Error fetching profile:", error)
+    } finally {
+      setIsProfileLoading(false)
     }
   }
 
@@ -156,21 +217,23 @@ export default function ChatScreen({ hideNavigation = false }: ChatScreenProps =
   }
 
   const filterContacts = () => {
-    let filtered = [...contacts]
-
-    // Filter by category if donor
+    let base = []
     if (userType === "donor") {
-      const roleToMatch = activeCategory === "gainer" ? "Recipient" : "Organization"
-      filtered = filtered.filter((contact) => contact.role === roleToMatch)
+      base = activeCategory === "gainer" ? donorGroups.gainers : donorGroups.organizations
+    } else if (userType === "organization") {
+      base = activeCategory === "gainer" ? orgGroups.gainers : orgGroups.donors
+    } else {
+      base = contacts
     }
+
+    let filtered = [...base]
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(
         (contact) =>
           contact.name.toLowerCase().includes(query) ||
-          contact.role.toLowerCase().includes(query) ||
-          contact.lastMessage.toLowerCase().includes(query)
+          contact.role.toLowerCase().includes(query)
       )
     }
     setFilteredContacts(filtered)
@@ -191,37 +254,65 @@ export default function ChatScreen({ hideNavigation = false }: ChatScreenProps =
   }
 
   const renderContactCard = ({ item, index }: { item: Contact; index: number }) => (
-    <TouchableOpacity style={styles.contactCard} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={styles.contactCard}
+      activeOpacity={0.7}
+      onPress={() => router.push({
+        pathname: "/chat/conversation",
+        params: {
+          contactId: item.id,
+          contactName: item.name,
+          contactRole: item.role,
+          organizationName: item.organizationName
+        }
+      })}
+    >
       <View style={styles.cardContent}>
-        <View style={[styles.avatarContainer, { backgroundColor: getAvatarColor(index) }]}>
-          <Text style={styles.avatarText}>{getInitials(item.name)}</Text>
-        </View>
+        <TouchableOpacity
+          onPress={() => handleShowProfile(item.id)}
+          style={[styles.avatarContainer, { backgroundColor: getAvatarColor(index) }]}
+        >
+          <Text style={styles.avatarText}>{getInitials(item.organizationName || item.name)}</Text>
+          {item.isOnline && <View style={styles.avatarOnlineDot} />}
+        </TouchableOpacity>
 
         <View style={styles.contactInfo}>
           <View style={styles.nameRow}>
             <Text style={styles.contactName} numberOfLines={1}>
+              {item.organizationName ? item.organizationName : item.name}{" "}
+              <Text style={styles.roleInName}>({item.role})</Text>
+            </Text>
+            {item.timestamp && (
+              <Text style={styles.timestamp}>{item.timestamp}</Text>
+            )}
+          </View>
+
+          {item.organizationName && (
+            <Text style={styles.contactSubtitle} numberOfLines={1}>
               {item.name}
             </Text>
-            {item.unread > 0 && (
+          )}
+
+          <View style={styles.messageRow}>
+            {item.lastMessage ? (
+              <Text style={styles.lastMessage} numberOfLines={1}>
+                {item.lastMessage}
+              </Text>
+            ) : (
+              <Text style={item.isOnline ? styles.activeStatusText : styles.offlineStatusText}>
+                {item.isOnline ? "Active now" : "Offline"}
+              </Text>
+            )}
+            {(item.unread ?? 0) > 0 && (
               <View style={styles.unreadBadge}>
                 <Text style={styles.unreadText}>{item.unread}</Text>
               </View>
             )}
           </View>
-          <Text style={styles.lastMessage} numberOfLines={1}>
-            {item.lastMessage}
-          </Text>
+
           <View style={styles.bottomRow}>
-            <Text style={styles.timestamp}>{item.timestamp}</Text>
-            <View style={styles.statusDot}>
-              <View
-                style={[
-                  styles.statusIndicator,
-                  { backgroundColor: item.status === "online" ? "#10B981" : "#9CA3AF" },
-                ]}
-              />
-              <Text style={styles.statusText}>{item.role}</Text>
-            </View>
+            <View style={[styles.statusIndicatorSmall, { backgroundColor: item.isOnline ? "#10B981" : "#9CA3AF" }]} />
+            <Text style={styles.statusTextSmall}>{item.isOnline ? "Online" : "Offline"}</Text>
           </View>
         </View>
       </View>
@@ -272,7 +363,7 @@ export default function ChatScreen({ hideNavigation = false }: ChatScreenProps =
           )}
         </View>
 
-        {userType === "donor" && (
+        {(userType === "donor" || userType === "organization") && (
           <View style={styles.categoryToggleContainer}>
             <TouchableOpacity
               style={[styles.categoryTab, activeCategory === "gainer" && styles.activeCategoryTab]}
@@ -288,16 +379,16 @@ export default function ChatScreen({ hideNavigation = false }: ChatScreenProps =
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.categoryTab, activeCategory === "organization" && styles.activeCategoryTab]}
-              onPress={() => setActiveCategory("organization")}
+              style={[styles.categoryTab, (activeCategory === "organization" || activeCategory === "donor") && styles.activeCategoryTab]}
+              onPress={() => setActiveCategory(userType === "donor" ? "organization" : "donor")}
             >
               <Text
                 style={[
                   styles.categoryTabText,
-                  activeCategory === "organization" && styles.activeCategoryTabText,
+                  (activeCategory === "organization" || activeCategory === "donor") && styles.activeCategoryTabText,
                 ]}
               >
-                Organization
+                {userType === "donor" ? "Organizations" : "Donors"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -324,13 +415,21 @@ export default function ChatScreen({ hideNavigation = false }: ChatScreenProps =
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#D11B31"]} />}
       />
 
-      {/* Floating Action Button */}
-      <TouchableOpacity style={styles.fab}>
-        <Ionicons name="add" size={28} color="#FFFFFF" />
-      </TouchableOpacity>
-
       {/* Navigation Bar */}
       {!hideNavigation && <Navigation userType={userType} initialTab="chat" />}
+
+      {/* Profile Modal */}
+      <ProfileModal
+        visible={isProfileModalVisible}
+        onClose={() => setIsProfileModalVisible(false)}
+        userData={selectedUser}
+      />
+
+      {isProfileLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#D11B31" />
+        </View>
+      )}
     </View>
   )
 }
@@ -419,6 +518,18 @@ const styles = StyleSheet.create({
     borderRadius: moderateScale(28),
     justifyContent: "center",
     alignItems: "center",
+    position: 'relative',
+  },
+  avatarOnlineDot: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: moderateScale(14),
+    height: moderateScale(14),
+    borderRadius: moderateScale(7),
+    backgroundColor: '#10B981',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   avatarText: {
     fontSize: moderateScale(18),
@@ -427,6 +538,7 @@ const styles = StyleSheet.create({
   },
   contactInfo: {
     flex: 1,
+    justifyContent: 'center',
   },
   nameRow: {
     flexDirection: "row",
@@ -437,51 +549,76 @@ const styles = StyleSheet.create({
   contactName: {
     fontSize: moderateScale(16),
     fontWeight: "600",
-    color: "#111827",
+    color: "#000",
     flex: 1,
   },
-  unreadBadge: {
-    backgroundColor: "#D11B31",
-    borderRadius: moderateScale(12),
-    minWidth: moderateScale(24),
-    paddingHorizontal: scale(6),
-    paddingVertical: verticalScale(2),
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: scale(8),
+  contactSubtitle: {
+    fontSize: moderateScale(13),
+    color: "#666",
+    marginTop: verticalScale(1),
+    marginBottom: verticalScale(1),
   },
-  unreadText: {
-    fontSize: moderateScale(12),
-    fontWeight: "700",
-    color: "#FFFFFF",
+  messageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: verticalScale(6),
   },
   lastMessage: {
     fontSize: moderateScale(14),
     color: "#6B7280",
-    marginBottom: verticalScale(6),
+    flex: 1,
+  },
+  activeStatusText: {
+    fontSize: moderateScale(13),
+    color: "#10B981",
+    fontWeight: "600",
+    flex: 1,
+  },
+  unreadBadge: {
+    backgroundColor: "#D11B31",
+    borderRadius: moderateScale(10),
+    minWidth: moderateScale(20),
+    height: moderateScale(20),
+    paddingHorizontal: scale(6),
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  unreadText: {
+    fontSize: moderateScale(11),
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   bottomRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
   },
   timestamp: {
     fontSize: moderateScale(12),
     color: "#9CA3AF",
+    fontWeight: '500',
   },
-  statusDot: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: scale(4),
-  },
-  statusIndicator: {
-    width: moderateScale(8),
-    height: moderateScale(8),
-    borderRadius: moderateScale(4),
-  },
-  statusText: {
+  roleInName: {
     fontSize: moderateScale(12),
     color: "#6B7280",
+    fontWeight: "400",
+  },
+  offlineStatusText: {
+    fontSize: moderateScale(13),
+    color: "#9CA3AF",
+    fontWeight: "500",
+    flex: 1,
+  },
+  statusIndicatorSmall: {
+    width: moderateScale(6),
+    height: moderateScale(6),
+    borderRadius: moderateScale(3),
+    marginRight: scale(4),
+  },
+  statusTextSmall: {
+    fontSize: moderateScale(11),
+    color: "#9CA3AF",
+    fontWeight: '500',
   },
   fab: {
     position: "absolute",
@@ -545,5 +682,12 @@ const styles = StyleSheet.create({
   activeCategoryTabText: {
     color: "#D11B31",
     fontWeight: "600",
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
   },
 })

@@ -7,14 +7,16 @@ import {
   Alert,
   Dimensions,
   Image,
+  KeyboardAvoidingView,
   Modal,
   PanResponder,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native"
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated"
 import { API_ENDPOINTS } from "../../../config/api"
@@ -48,7 +50,7 @@ export default function RegisterScreen() {
   const [phoneNumber, setPhoneNumber] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  
+
   // Validation states
   const [fullNameError, setFullNameError] = useState<string | null>(null)
   const [emailError, setEmailError] = useState<string | null>(null)
@@ -59,7 +61,7 @@ export default function RegisterScreen() {
   const [addressError, setAddressError] = useState<string | null>(null)
   const [organizationNameError, setOrganizationNameError] = useState<string | null>(null)
   const [contactError, setContactError] = useState<string | null>(null)
-  
+
   const [fullNameTouched, setFullNameTouched] = useState(false)
   const [emailTouched, setEmailTouched] = useState(false)
   const [passwordTouched, setPasswordTouched] = useState(false)
@@ -257,7 +259,7 @@ export default function RegisterScreen() {
     const emailErr = validateEmail(email)
     const passwordErr = validatePassword(password)
     const phoneErr = validatePhone(phoneNumber)
-    
+
     setFullNameTouched(true)
     setEmailTouched(true)
     setPasswordTouched(true)
@@ -266,7 +268,7 @@ export default function RegisterScreen() {
     setEmailError(emailErr)
     setPasswordError(passwordErr)
     setPhoneError(phoneErr)
-    
+
     let hasError = !!(nameErr || emailErr || passwordErr || phoneErr)
 
     // Role-specific validation
@@ -308,35 +310,35 @@ export default function RegisterScreen() {
     setIsLoading(true)
 
     try {
-    let registrationData: any = {
-      role: selectedType,
-      fullName,
-      email,
-      password,
-      phone: phoneNumber,
-    }
+      let registrationData: any = {
+        role: selectedType,
+        fullName,
+        email,
+        password,
+        phone: phoneNumber,
+      }
 
-    if (selectedType === "donor") {
-      registrationData = {
-        ...registrationData,
-        bloodType,
-        eligibilityStatus: "pending",
-        location,
-        lastDonationDate: lastDonationDate?.toISOString(),
+      if (selectedType === "donor") {
+        registrationData = {
+          ...registrationData,
+          bloodType,
+          eligibilityStatus: "pending",
+          location,
+          lastDonationDate: lastDonationDate?.toISOString(),
+        }
+      } else if (selectedType === "gainer") {
+        registrationData = {
+          ...registrationData,
+          address,
+        }
+      } else if (selectedType === "organization") {
+        registrationData = {
+          ...registrationData,
+          organizationName,
+          location,
+          contact,
+        }
       }
-    } else if (selectedType === "gainer") {
-      registrationData = {
-        ...registrationData,
-        address,
-      }
-    } else if (selectedType === "organization") {
-      registrationData = {
-        ...registrationData,
-        organizationName,
-        location,
-        contact,
-      }
-    }
 
       console.log("Sending registration data:", registrationData)
 
@@ -374,340 +376,345 @@ export default function RegisterScreen() {
 
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <View style={styles.carouselWrapper}>
-        <Text style={styles.swipeHint}>← Swipe to change →</Text>
-        <Animated.View style={[styles.bubblesContainer, containerStyle]} {...panResponder.panHandlers}>
-          {/* Left Bubble */}
-          <Animated.View style={[styles.bubble, leftBubbleStyle]}>
-            <View style={styles.bubbleContent}>
-              <Image source={userTypeImages[carouselOrder[0]]} style={styles.bubbleImage} resizeMode="cover" />
-            </View>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView contentContainerStyle={styles.contentContainer}>
+        <View style={styles.carouselWrapper}>
+          <Text style={styles.swipeHint}>← Swipe to change →</Text>
+          <Animated.View style={[styles.bubblesContainer, containerStyle]} {...panResponder.panHandlers}>
+            {/* Left Bubble */}
+            <Animated.View style={[styles.bubble, leftBubbleStyle]}>
+              <View style={styles.bubbleContent}>
+                <Image source={userTypeImages[carouselOrder[0]]} style={styles.bubbleImage} resizeMode="cover" />
+              </View>
+            </Animated.View>
+
+            {/* Center Bubble (Selected) */}
+            <Animated.View
+              style={[
+                styles.bubble,
+                styles.centerBubble,
+                centerBubbleStyle,
+                { backgroundColor: userTypeConfig[carouselOrder[1]].color + "40" },
+              ]}
+            >
+              <View style={styles.bubbleContent}>
+                <Image source={userTypeImages[carouselOrder[1]]} style={styles.centerImage} resizeMode="cover" />
+              </View>
+            </Animated.View>
+
+            {/* Right Bubble */}
+            <Animated.View style={[styles.bubble, rightBubbleStyle]}>
+              <View style={styles.bubbleContent}>
+                <Image source={userTypeImages[carouselOrder[2]]} style={styles.bubbleImage} resizeMode="cover" />
+              </View>
+            </Animated.View>
           </Animated.View>
 
-          {/* Center Bubble (Selected) */}
-          <Animated.View
-            style={[
-              styles.bubble,
-              styles.centerBubble,
-              centerBubbleStyle,
-              { backgroundColor: userTypeConfig[carouselOrder[1]].color + "40" },
-            ]}
-          >
-            <View style={styles.bubbleContent}>
-              <Image source={userTypeImages[carouselOrder[1]]} style={styles.centerImage} resizeMode="cover" />
-            </View>
-          </Animated.View>
-
-          {/* Right Bubble */}
-          <Animated.View style={[styles.bubble, rightBubbleStyle]}>
-            <View style={styles.bubbleContent}>
-              <Image source={userTypeImages[carouselOrder[2]]} style={styles.bubbleImage} resizeMode="cover" />
-            </View>
-          </Animated.View>
-        </Animated.View>
-
-        <View style={styles.selectedLabelContainer}>
-          <Text style={styles.selectedTypeLabel}>{userTypeConfig[selectedType].label}</Text>
-        </View>
-      </View>
-
-      <View style={styles.titleContainer}>
-        <Text style={styles.title}>
-          Create Your <Text style={styles.titleHighlight}>BloodBuddy</Text> Account
-        </Text>
-        <Text style={styles.subtitle}>
-          Join the BloodBuddy family - where helping someone is just a connection away.
-        </Text>
-      </View>
-
-      <View style={styles.formContainer}>
-        <Text style={styles.label}>Full Name</Text>
-        <TextInput
-          style={[styles.input, fullNameTouched && fullNameError ? styles.inputError : null]}
-          placeholder="Enter your name"
-          placeholderTextColor="#9B7B7F"
-          value={fullName}
-          onChangeText={(text) => {
-            setFullName(text)
-            if (fullNameTouched) setFullNameError(validateFullName(text))
-          }}
-          onBlur={() => {
-            setFullNameTouched(true)
-            setFullNameError(validateFullName(fullName))
-          }}
-        />
-        {fullNameTouched && !!fullNameError && <Text style={styles.errorText}>{fullNameError}</Text>}
-
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={[styles.input, emailTouched && emailError ? styles.inputError : null]}
-          placeholder="Enter your email"
-          placeholderTextColor="#9B7B7F"
-          value={email}
-          onChangeText={(text) => {
-            setEmail(text)
-            if (emailTouched) setEmailError(validateEmail(text))
-          }}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          onBlur={() => {
-            setEmailTouched(true)
-            setEmailError(validateEmail(email))
-          }}
-        />
-        {emailTouched && !!emailError && <Text style={styles.errorText}>{emailError}</Text>}
-
-        <Text style={styles.label}>Password</Text>
-        <View style={styles.inputWithIcon}>
-          <TextInput
-            style={[styles.input, styles.inputFlex, passwordTouched && passwordError ? styles.inputError : null]}
-            placeholder="Enter your password"
-            placeholderTextColor="#9B7B7F"
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text)
-              if (passwordTouched) setPasswordError(validatePassword(text))
-            }}
-            secureTextEntry={!showPassword}
-            onBlur={() => {
-              setPasswordTouched(true)
-              setPasswordError(validatePassword(password))
-            }}
-          />
-          <TouchableOpacity
-            style={styles.eyeButton}
-            onPress={() => setShowPassword((prev) => !prev)}
-            accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-          >
-            <Ionicons
-              name={showPassword ? 'eye' : 'eye-off'}
-              size={20}
-              color="#6b7280"
-            />
-          </TouchableOpacity>
-        </View>
-        {passwordTouched && !!passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
-
-        <Text style={styles.label}>Phone Number</Text>
-        <TextInput
-          style={[styles.input, phoneTouched && phoneError ? styles.inputError : null]}
-          placeholder="Enter your phone number"
-          placeholderTextColor="#9B7B7F"
-          value={phoneNumber}
-          onChangeText={(text) => {
-            setPhoneNumber(text)
-            if (phoneTouched) setPhoneError(validatePhone(text))
-          }}
-          keyboardType="phone-pad"
-          onBlur={() => {
-            setPhoneTouched(true)
-            setPhoneError(validatePhone(phoneNumber))
-          }}
-        />
-        {phoneTouched && !!phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
-
-        {selectedType === "donor" && (
-          <>
-            <Text style={styles.label}>Blood Type</Text>
-            <TouchableOpacity style={[styles.pickerButton, bloodTypeTouched && bloodTypeError ? styles.inputError : null]} onPress={() => {
-              setShowBloodTypePicker(true)
-              setBloodTypeTouched(true)
-            }}>
-              <Text style={[styles.pickerButtonText, !bloodType && styles.placeholderText]}>
-                {bloodType || "Select your blood type"}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color="#6b7280" />
-            </TouchableOpacity>
-            {bloodTypeTouched && !!bloodTypeError && <Text style={styles.errorText}>{bloodTypeError}</Text>}
-
-            <Text style={styles.label}>Location</Text>
-            <TextInput
-              style={[styles.input, locationTouched && locationError ? styles.inputError : null]}
-              placeholder="Enter your location"
-              placeholderTextColor="#9B7B7F"
-              value={location}
-              onChangeText={(text) => {
-                setLocation(text)
-                if (locationTouched) setLocationError(validateLocation(text))
-              }}
-              onBlur={() => {
-                setLocationTouched(true)
-                setLocationError(validateLocation(location))
-              }}
-            />
-            {locationTouched && !!locationError && <Text style={styles.errorText}>{locationError}</Text>}
-
-            <Text style={styles.label}>Last Donation Date</Text>
-            <TouchableOpacity style={styles.pickerButton} onPress={() => setShowDatePicker(true)}>
-              <Text style={[styles.pickerButtonText, !lastDonationDate && styles.placeholderText]}>
-                {lastDonationDate ? formatDate(lastDonationDate) : "Select date"}
-              </Text>
-              <Ionicons name="calendar-outline" size={20} color="#6b7280" />
-            </TouchableOpacity>
-          </>
-        )}
-
-        {selectedType === "gainer" && (
-          <>
-            <Text style={styles.label}>Address</Text>
-            <TextInput
-              style={[styles.input, styles.textArea, addressTouched && addressError ? styles.inputError : null]}
-              placeholder="Enter your address"
-              placeholderTextColor="#9B7B7F"
-              value={address}
-              onChangeText={(text) => {
-                setAddress(text)
-                if (addressTouched) setAddressError(validateAddress(text))
-              }}
-              multiline
-              numberOfLines={3}
-              onBlur={() => {
-                setAddressTouched(true)
-                setAddressError(validateAddress(address))
-              }}
-            />
-            {addressTouched && !!addressError && <Text style={styles.errorText}>{addressError}</Text>}
-          </>
-        )}
-
-        {selectedType === "organization" && (
-          <>
-            <Text style={styles.label}>Organization Name</Text>
-            <TextInput
-              style={[styles.input, organizationNameTouched && organizationNameError ? styles.inputError : null]}
-              placeholder="Enter organization name"
-              placeholderTextColor="#9B7B7F"
-              value={organizationName}
-              onChangeText={(text) => {
-                setOrganizationName(text)
-                if (organizationNameTouched) setOrganizationNameError(validateOrganizationName(text))
-              }}
-              onBlur={() => {
-                setOrganizationNameTouched(true)
-                setOrganizationNameError(validateOrganizationName(organizationName))
-              }}
-            />
-            {organizationNameTouched && !!organizationNameError && <Text style={styles.errorText}>{organizationNameError}</Text>}
-
-            <Text style={styles.label}>Location</Text>
-            <TextInput
-              style={[styles.input, locationTouched && locationError ? styles.inputError : null]}
-              placeholder="Enter organization location"
-              placeholderTextColor="#9B7B7F"
-              value={location}
-              onChangeText={(text) => {
-                setLocation(text)
-                if (locationTouched) setLocationError(validateLocation(text))
-              }}
-              onBlur={() => {
-                setLocationTouched(true)
-                setLocationError(validateLocation(location))
-              }}
-            />
-            {locationTouched && !!locationError && <Text style={styles.errorText}>{locationError}</Text>}
-
-            <Text style={styles.label}>Contact</Text>
-            <TextInput
-              style={[styles.input, contactTouched && contactError ? styles.inputError : null]}
-              placeholder="Enter contact number"
-              placeholderTextColor="#9B7B7F"
-              value={contact}
-              onChangeText={(text) => {
-                setContact(text)
-                if (contactTouched) setContactError(validateContact(text))
-              }}
-              keyboardType="phone-pad"
-              onBlur={() => {
-                setContactTouched(true)
-                setContactError(validateContact(contact))
-              }}
-            />
-            {contactTouched && !!contactError && <Text style={styles.errorText}>{contactError}</Text>}
-          </>
-        )}
-
-        <TouchableOpacity
-          style={[styles.registerButton, (isLoading || !isFormValid()) && styles.registerButtonDisabled]}
-          onPress={handleRegister}
-          disabled={isLoading || !isFormValid()}
-        >
-          <Text style={styles.registerButtonText}>{isLoading ? "Registering..." : "Register Now"}</Text>
-        </TouchableOpacity>
-
-        <View style={styles.loginContainer}>
-          <Text style={styles.loginText}>Already Registered? </Text>
-          <TouchableOpacity onPress={() => router.push("/auth/login")}>
-            <Text style={styles.loginLink}>Login</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <Modal visible={showBloodTypePicker} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Blood Type</Text>
-              <TouchableOpacity onPress={() => setShowBloodTypePicker(false)}>
-                <Ionicons name="close-circle" size={28} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.pickerScroll}>
-              {bloodTypes.map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  style={[styles.pickerOption, bloodType === type && styles.pickerOptionSelected]}
-                  onPress={() => {
-                    setBloodType(type)
-                    setBloodTypeTouched(true)
-                    setBloodTypeError(null)
-                    playHaptic()
-                    setShowBloodTypePicker(false)
-                  }}
-                >
-                  <Text style={[styles.pickerOptionText, bloodType === type && styles.pickerOptionTextSelected]}>
-                    {type}
-                  </Text>
-                  {bloodType === type && <Ionicons name="checkmark-circle" size={24} color="#D11B31" />}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+          <View style={styles.selectedLabelContainer}>
+            <Text style={styles.selectedTypeLabel}>{userTypeConfig[selectedType].label}</Text>
           </View>
         </View>
-      </Modal>
 
-      {showDatePicker && (
-        <Modal visible={showDatePicker} transparent animationType="slide">
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>
+            Create Your <Text style={styles.titleHighlight}>BloodBuddy</Text> Account
+          </Text>
+          <Text style={styles.subtitle}>
+            Join the BloodBuddy family - where helping someone is just a connection away.
+          </Text>
+        </View>
+
+        <View style={styles.formContainer}>
+          <Text style={styles.label}>Full Name</Text>
+          <TextInput
+            style={[styles.input, fullNameTouched && fullNameError ? styles.inputError : null]}
+            placeholder="Enter your name"
+            placeholderTextColor="#9B7B7F"
+            value={fullName}
+            onChangeText={(text) => {
+              setFullName(text)
+              if (fullNameTouched) setFullNameError(validateFullName(text))
+            }}
+            onBlur={() => {
+              setFullNameTouched(true)
+              setFullNameError(validateFullName(fullName))
+            }}
+          />
+          {fullNameTouched && !!fullNameError && <Text style={styles.errorText}>{fullNameError}</Text>}
+
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={[styles.input, emailTouched && emailError ? styles.inputError : null]}
+            placeholder="Enter your email"
+            placeholderTextColor="#9B7B7F"
+            value={email}
+            onChangeText={(text) => {
+              setEmail(text)
+              if (emailTouched) setEmailError(validateEmail(text))
+            }}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            onBlur={() => {
+              setEmailTouched(true)
+              setEmailError(validateEmail(email))
+            }}
+          />
+          {emailTouched && !!emailError && <Text style={styles.errorText}>{emailError}</Text>}
+
+          <Text style={styles.label}>Password</Text>
+          <View style={styles.inputWithIcon}>
+            <TextInput
+              style={[styles.input, styles.inputFlex, passwordTouched && passwordError ? styles.inputError : null]}
+              placeholder="Enter your password"
+              placeholderTextColor="#9B7B7F"
+              value={password}
+              onChangeText={(text) => {
+                setPassword(text)
+                if (passwordTouched) setPasswordError(validatePassword(text))
+              }}
+              secureTextEntry={!showPassword}
+              onBlur={() => {
+                setPasswordTouched(true)
+                setPasswordError(validatePassword(password))
+              }}
+            />
+            <TouchableOpacity
+              style={styles.eyeButton}
+              onPress={() => setShowPassword((prev) => !prev)}
+              accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+            >
+              <Ionicons
+                name={showPassword ? 'eye' : 'eye-off'}
+                size={20}
+                color="#6b7280"
+              />
+            </TouchableOpacity>
+          </View>
+          {passwordTouched && !!passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
+
+          <Text style={styles.label}>Phone Number</Text>
+          <TextInput
+            style={[styles.input, phoneTouched && phoneError ? styles.inputError : null]}
+            placeholder="Enter your phone number"
+            placeholderTextColor="#9B7B7F"
+            value={phoneNumber}
+            onChangeText={(text) => {
+              setPhoneNumber(text)
+              if (phoneTouched) setPhoneError(validatePhone(text))
+            }}
+            keyboardType="phone-pad"
+            onBlur={() => {
+              setPhoneTouched(true)
+              setPhoneError(validatePhone(phoneNumber))
+            }}
+          />
+          {phoneTouched && !!phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
+
+          {selectedType === "donor" && (
+            <>
+              <Text style={styles.label}>Blood Type</Text>
+              <TouchableOpacity style={[styles.pickerButton, bloodTypeTouched && bloodTypeError ? styles.inputError : null]} onPress={() => {
+                setShowBloodTypePicker(true)
+                setBloodTypeTouched(true)
+              }}>
+                <Text style={[styles.pickerButtonText, !bloodType && styles.placeholderText]}>
+                  {bloodType || "Select your blood type"}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color="#6b7280" />
+              </TouchableOpacity>
+              {bloodTypeTouched && !!bloodTypeError && <Text style={styles.errorText}>{bloodTypeError}</Text>}
+
+              <Text style={styles.label}>Location</Text>
+              <TextInput
+                style={[styles.input, locationTouched && locationError ? styles.inputError : null]}
+                placeholder="Enter your location"
+                placeholderTextColor="#9B7B7F"
+                value={location}
+                onChangeText={(text) => {
+                  setLocation(text)
+                  if (locationTouched) setLocationError(validateLocation(text))
+                }}
+                onBlur={() => {
+                  setLocationTouched(true)
+                  setLocationError(validateLocation(location))
+                }}
+              />
+              {locationTouched && !!locationError && <Text style={styles.errorText}>{locationError}</Text>}
+
+              <Text style={styles.label}>Last Donation Date</Text>
+              <TouchableOpacity style={styles.pickerButton} onPress={() => setShowDatePicker(true)}>
+                <Text style={[styles.pickerButtonText, !lastDonationDate && styles.placeholderText]}>
+                  {lastDonationDate ? formatDate(lastDonationDate) : "Select date"}
+                </Text>
+                <Ionicons name="calendar-outline" size={20} color="#6b7280" />
+              </TouchableOpacity>
+            </>
+          )}
+
+          {selectedType === "gainer" && (
+            <>
+              <Text style={styles.label}>Address</Text>
+              <TextInput
+                style={[styles.input, styles.textArea, addressTouched && addressError ? styles.inputError : null]}
+                placeholder="Enter your address"
+                placeholderTextColor="#9B7B7F"
+                value={address}
+                onChangeText={(text) => {
+                  setAddress(text)
+                  if (addressTouched) setAddressError(validateAddress(text))
+                }}
+                multiline
+                numberOfLines={3}
+                onBlur={() => {
+                  setAddressTouched(true)
+                  setAddressError(validateAddress(address))
+                }}
+              />
+              {addressTouched && !!addressError && <Text style={styles.errorText}>{addressError}</Text>}
+            </>
+          )}
+
+          {selectedType === "organization" && (
+            <>
+              <Text style={styles.label}>Organization Name</Text>
+              <TextInput
+                style={[styles.input, organizationNameTouched && organizationNameError ? styles.inputError : null]}
+                placeholder="Enter organization name"
+                placeholderTextColor="#9B7B7F"
+                value={organizationName}
+                onChangeText={(text) => {
+                  setOrganizationName(text)
+                  if (organizationNameTouched) setOrganizationNameError(validateOrganizationName(text))
+                }}
+                onBlur={() => {
+                  setOrganizationNameTouched(true)
+                  setOrganizationNameError(validateOrganizationName(organizationName))
+                }}
+              />
+              {organizationNameTouched && !!organizationNameError && <Text style={styles.errorText}>{organizationNameError}</Text>}
+
+              <Text style={styles.label}>Location</Text>
+              <TextInput
+                style={[styles.input, locationTouched && locationError ? styles.inputError : null]}
+                placeholder="Enter organization location"
+                placeholderTextColor="#9B7B7F"
+                value={location}
+                onChangeText={(text) => {
+                  setLocation(text)
+                  if (locationTouched) setLocationError(validateLocation(text))
+                }}
+                onBlur={() => {
+                  setLocationTouched(true)
+                  setLocationError(validateLocation(location))
+                }}
+              />
+              {locationTouched && !!locationError && <Text style={styles.errorText}>{locationError}</Text>}
+
+              <Text style={styles.label}>Contact</Text>
+              <TextInput
+                style={[styles.input, contactTouched && contactError ? styles.inputError : null]}
+                placeholder="Enter contact number"
+                placeholderTextColor="#9B7B7F"
+                value={contact}
+                onChangeText={(text) => {
+                  setContact(text)
+                  if (contactTouched) setContactError(validateContact(text))
+                }}
+                keyboardType="phone-pad"
+                onBlur={() => {
+                  setContactTouched(true)
+                  setContactError(validateContact(contact))
+                }}
+              />
+              {contactTouched && !!contactError && <Text style={styles.errorText}>{contactError}</Text>}
+            </>
+          )}
+
+          <TouchableOpacity
+            style={[styles.registerButton, (isLoading || !isFormValid()) && styles.registerButtonDisabled]}
+            onPress={handleRegister}
+            disabled={isLoading || !isFormValid()}
+          >
+            <Text style={styles.registerButtonText}>{isLoading ? "Registering..." : "Register Now"}</Text>
+          </TouchableOpacity>
+
+          <View style={styles.loginContainer}>
+            <Text style={styles.loginText}>Already Registered? </Text>
+            <TouchableOpacity onPress={() => router.push("/auth/login")}>
+              <Text style={styles.loginLink}>Login</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <Modal visible={showBloodTypePicker} transparent animationType="slide">
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Date</Text>
-                <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                  <Text style={styles.doneButton}>Done</Text>
+                <Text style={styles.modalTitle}>Select Blood Type</Text>
+                <TouchableOpacity onPress={() => setShowBloodTypePicker(false)}>
+                  <Ionicons name="close-circle" size={28} color="#6b7280" />
                 </TouchableOpacity>
               </View>
 
-              <DateTimePicker
-                value={lastDonationDate || new Date()}
-                mode="date"
-                display="spinner"
-                onChange={(event, date) => {
-                  if (date) {
-                    setLastDonationDate(date)
-                    playHaptic()
-                  }
-                }}
-                maximumDate={new Date()}
-                textColor="#000000"
-              />
+              <ScrollView style={styles.pickerScroll}>
+                {bloodTypes.map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[styles.pickerOption, bloodType === type && styles.pickerOptionSelected]}
+                    onPress={() => {
+                      setBloodType(type)
+                      setBloodTypeTouched(true)
+                      setBloodTypeError(null)
+                      playHaptic()
+                      setShowBloodTypePicker(false)
+                    }}
+                  >
+                    <Text style={[styles.pickerOptionText, bloodType === type && styles.pickerOptionTextSelected]}>
+                      {type}
+                    </Text>
+                    {bloodType === type && <Ionicons name="checkmark-circle" size={24} color="#D11B31" />}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
           </View>
         </Modal>
-      )}
 
-      {/* OTP verification now handled in /otp screen */}
-    </ScrollView>
+        {showDatePicker && (
+          <Modal visible={showDatePicker} transparent animationType="slide">
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Select Date</Text>
+                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                    <Text style={styles.doneButton}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <DateTimePicker
+                  value={lastDonationDate || new Date()}
+                  mode="date"
+                  display="spinner"
+                  onChange={(event, date) => {
+                    if (date) {
+                      setLastDonationDate(date)
+                      playHaptic()
+                    }
+                  }}
+                  maximumDate={new Date()}
+                  textColor="#000000"
+                />
+              </View>
+            </View>
+          </Modal>
+        )}
+
+        {/* OTP verification now handled in /otp screen */}
+      </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
 

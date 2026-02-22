@@ -43,11 +43,17 @@ export default function OrganizationScreen({ hideNavigation = false }: Organizat
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [userType, setUserType] = useState<UserType>("donor")
+  const [activeCategory, setActiveCategory] = useState<"organizations" | "payments">("organizations")
+  const [payments, setPayments] = useState<any[]>([])
 
   useEffect(() => {
     loadUserData()
-    loadOrganizations()
-  }, [])
+    if (activeCategory === "organizations") {
+      loadOrganizations()
+    } else {
+      loadPayments()
+    }
+  }, [activeCategory])
 
   const loadUserData = async () => {
     try {
@@ -125,8 +131,32 @@ export default function OrganizationScreen({ hideNavigation = false }: Organizat
 
   const onRefresh = async () => {
     setRefreshing(true)
-    await loadOrganizations()
+    if (activeCategory === "organizations") {
+      await loadOrganizations()
+    } else {
+      await loadPayments()
+    }
     setRefreshing(false)
+  }
+
+  const loadPayments = async () => {
+    try {
+      setLoading(true)
+      const token = await AsyncStorage.getItem("authToken")
+      if (!token) return
+
+      const response = await fetch(API_ENDPOINTS.GET_PAYMENT_HISTORY, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setPayments(data.payments || [])
+      }
+    } catch (error) {
+      console.error("Error loading payments:", error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const filterOrganizations = () => {
@@ -247,6 +277,46 @@ export default function OrganizationScreen({ hideNavigation = false }: Organizat
     </TouchableOpacity>
   )
 
+  const renderPaymentCard = ({ item }: { item: any }) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={styles.cardHeaderLeft}>
+          <View style={[styles.iconContainer, { backgroundColor: "#6366F120" }]}>
+            <Ionicons name="card" size={24} color="#D11B31" />
+          </View>
+          <View style={styles.cardHeaderText}>
+            <Text style={styles.organizationName} numberOfLines={1}>
+              {item.request?.organization?.OrganizationName || "Blood Payment"}
+            </Text>
+            <Text style={styles.typeText}>{item.Provider} Payment</Text>
+          </View>
+        </View>
+        <View style={styles.statusBadge}>
+          <Text style={[styles.statusText, { color: "#059669" }]}>₹{item.Amount}</Text>
+        </View>
+      </View>
+      <View style={styles.divider} />
+      <View style={styles.cardBody}>
+        <View style={styles.infoRow}>
+          <Ionicons name="receipt-outline" size={18} color="#6B7280" />
+          <Text style={styles.infoText}>Payment ID: {item.PaymentId}</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Ionicons name="calendar-outline" size={18} color="#6B7280" />
+          <Text style={styles.infoText}>
+            {new Date(item.PaymentDate).toLocaleDateString()} at {new Date(item.PaymentDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Ionicons name="water-outline" size={18} color="#6B7280" />
+          <Text style={styles.infoText}>
+            {item.request?.BloodType} - {item.request?.Units} units
+          </Text>
+        </View>
+      </View>
+    </View>
+  )
+
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <Ionicons name="search-outline" size={64} color="#D1D5DB" />
@@ -288,6 +358,35 @@ export default function OrganizationScreen({ hideNavigation = false }: Organizat
           )}
         </View>
 
+        <View style={styles.categoryToggleContainer}>
+          <TouchableOpacity
+            style={[styles.categoryTab, activeCategory === "organizations" && styles.activeCategoryTab]}
+            onPress={() => setActiveCategory("organizations")}
+          >
+            <Text
+              style={[
+                styles.categoryTabText,
+                activeCategory === "organizations" && styles.activeCategoryTabText,
+              ]}
+            >
+              Organizations
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.categoryTab, activeCategory === "payments" && styles.activeCategoryTab]}
+            onPress={() => setActiveCategory("payments")}
+          >
+            <Text
+              style={[
+                styles.categoryTabText,
+                activeCategory === "payments" && styles.activeCategoryTabText,
+              ]}
+            >
+              Payments
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.resultsHeader}>
           <Text style={styles.resultsCount}>
             {filteredOrganizations.length} {filteredOrganizations.length === 1 ? "Organization" : "Organizations"}
@@ -299,11 +398,11 @@ export default function OrganizationScreen({ hideNavigation = false }: Organizat
         </View>
       </View>
 
-      {/* Organizations List */}
+      {/* List content based on category */}
       <FlatList
-        data={filteredOrganizations}
-        renderItem={renderOrganizationCard}
-        keyExtractor={(item) => item.id}
+        data={activeCategory === "organizations" ? filteredOrganizations : payments}
+        renderItem={activeCategory === "organizations" ? renderOrganizationCard : renderPaymentCard}
+        keyExtractor={(item: any) => (activeCategory === "organizations" ? item.id : String(item.PaymentId))}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={renderEmptyState}
@@ -530,5 +629,45 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(14),
     color: "#6B7280",
     textAlign: "center",
+  },
+  categoryToggleContainer: {
+    flexDirection: "row",
+    backgroundColor: "#F3F4F6",
+    borderRadius: moderateScale(12),
+    marginTop: verticalScale(16),
+    padding: scale(4),
+  },
+  categoryTab: {
+    flex: 1,
+    paddingVertical: verticalScale(8),
+    alignItems: "center",
+    borderRadius: moderateScale(8),
+  },
+  activeCategoryTab: {
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  categoryTabText: {
+    fontSize: moderateScale(14),
+    fontWeight: "500",
+    color: "#6B7280",
+  },
+  activeCategoryTabText: {
+    color: "#D11B31",
+    fontWeight: "600",
+  },
+  statusBadge: {
+    paddingHorizontal: scale(10),
+    paddingVertical: verticalScale(4),
+    borderRadius: moderateScale(10),
+    backgroundColor: "#ECFDF5",
+  },
+  statusText: {
+    fontSize: moderateScale(12),
+    fontWeight: "700",
   },
 })

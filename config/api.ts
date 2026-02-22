@@ -1,4 +1,4 @@
-export const API_BASE_URL = "http://192.168.1.67:8000"
+export const API_BASE_URL = "http://192.168.1.219:8000"
 
 export const API_ENDPOINTS = {
   REGISTER: `${API_BASE_URL}/api/users/register`,
@@ -45,6 +45,9 @@ export const API_ENDPOINTS = {
   VERIFY_KHALTI: `${API_BASE_URL}/api/payments/verify-khalti`,
   INITIATE_ESEWA: `${API_BASE_URL}/api/payments/initiate-esewa`,
   VERIFY_ESEWA: `${API_BASE_URL}/api/payments/verify-esewa`,
+  GET_PAYMENT_HISTORY: `${API_BASE_URL}/api/payments/history`,
+  GET_DONORS: `${API_BASE_URL}/api/donors/getDonors`,
+  GET_PROFILE: (userId: string) => `${API_BASE_URL}/api/users/profile/${userId}`,
 }
 
 
