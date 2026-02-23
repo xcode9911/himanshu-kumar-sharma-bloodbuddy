@@ -1,14 +1,15 @@
 import express from 'express';
 import {
-  register,
-  verifyOTP,
-  resendOTP,
+  checkEligibility,
+  getUserProfile,
   login,
+  refreshToken,
+  register,
   requestPasswordReset,
+  resendOTP,
   resetPassword,
   updateProfile,
-  checkEligibility,
-  refreshToken,
+  verifyOTP
 } from '../controllers/userController.js';
 import catchAsync from '../utils/catchAsync.js';
 
@@ -23,6 +24,7 @@ router.post('/reset-password', catchAsync(resetPassword));//US-4
 router.put('/profile', catchAsync(updateProfile));//US-5
 router.post('/eligibility-check', catchAsync(checkEligibility));//us-6&7
 router.get('/refresh-token', catchAsync(refreshToken));//Refresh JWT token
+router.get('/profile/:userId', catchAsync(getUserProfile)); // Get user profile
 
 export default router;
 

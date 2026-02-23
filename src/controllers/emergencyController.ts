@@ -27,7 +27,8 @@ const getUserIdFromAuthHeader = (req: Request): { userId: string | null; error?:
 /**
  * Notifies all available donors about an emergency request
  */
-async function notifyDonors(req: Request, requestId: number, bloodType: string, gainerName: string, units: number) {
+async function notifyDonors(req: Request, requestId: number, bloodType: string, gainerName: string, units: number) 
+{
     const io = req.app.get('socketio');
 
     // Find all available donors with matching blood type

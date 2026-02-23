@@ -9,6 +9,7 @@ import { Server } from "socket.io";
 import prisma from "./models/index.js";
 import bookingRoutes from "./routes/bookingRoute.js";
 import campaignRoutes from "./routes/campaignRoute.js";
+import chatRoutes from "./routes/chatRoute.js";
 import donationRoutes from "./routes/donationRoute.js";
 import donorRoutes from "./routes/donorRoute.js";
 import emergencyRoutes from "./routes/emergencyRoute.js";
@@ -39,25 +40,61 @@ const io = new Server(httpServer, {
   }
 });
 
+// Track online users
+const onlineUsers = new Map<string, string>(); // userId -> socketId
+
 io.on("connection", (socket) => {
   console.log("A user connected:", socket.id);
 
-  // Allow users to join a room with their userId for targeted notifications
+  // Allow users to join a room with their userId for targeted messages/notifications
   socket.on("join", (userId) => {
     if (userId) {
-      socket.join(userId);
-      console.log(`User ${userId} joined room ${userId}`);
+      const normalizedId = userId.toLowerCase();
+      socket.join(normalizedId);
+      onlineUsers.set(normalizedId, socket.id);
+      console.log(`User ${normalizedId} joined room ${normalizedId}`);
+
+      // Broadcast online status update if needed
+      io.emit("userStatusUpdate", { userId: normalizedId, status: "online" });
     }
+  });
+
+  // Handle private messages
+  socket.on("privateMessage", ({ receiverId, message, senderId, senderName }) => {
+    const normalizedReceiverId = receiverId.toLowerCase();
+    const normalizedSenderId = senderId.toLowerCase();
+    console.log(`Message from ${normalizedSenderId} to ${normalizedReceiverId}: ${message}`);
+    io.to(normalizedReceiverId).emit("newMessage", {
+      senderId: normalizedSenderId,
+      senderName,
+      message,
+      timestamp: new Date().toISOString()
+    });
   });
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
+    let disconnectedUserId: string | undefined;
+
+    for (const [userId, socketId] of onlineUsers.entries()) {
+      if (socketId === socket.id) {
+        disconnectedUserId = userId;
+        onlineUsers.delete(userId);
+        break;
+      }
+    }
+
+    if (disconnectedUserId) {
+      const normalizedId = disconnectedUserId.toLowerCase();
+      io.emit("userStatusUpdate", { userId: normalizedId, status: "offline" });
+    }
   });
 });
 
-// Make io accessible to our routers
+// Make io and onlineUsers accessible to our routers
 app.use((req, res, next) => {
   req.app.set('socketio', io);
+  req.app.set('onlineUsers', onlineUsers);
   next();
 });
 
@@ -75,10 +112,10 @@ app.use("/api/requests", requestRoutes);
 app.use("/api/emergency", emergencyRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use('/api/donations', donationRoutes);
-app.use('/api/donations', donationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use('/api/campaigns', campaignRoutes);
+app.use("/api/chat", chatRoutes);
 
 
 // Error handler

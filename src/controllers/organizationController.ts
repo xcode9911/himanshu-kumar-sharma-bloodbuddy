@@ -379,6 +379,7 @@ export const getAllOrganizations = async (req: Request, res: Response) => {
     });
 
     const formattedOrgs = organizations.map(org => ({
+      id: org.UserId,
       organizationId: org.OrganizationId,
       organizationName: org.OrganizationName,
       location: org.Location,

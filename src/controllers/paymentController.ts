@@ -15,20 +15,20 @@ export const initiateKhaltiPayment = async (req: Request, res: Response) => {
     }
 
     try {
-        // Generate unique purchase_order_id
+        // this part generates unique purchare_order_id for every transaction
         const purchase_order_id = `ORDER_${requestId}_${Date.now()}`;
 
         const host = req.get('host') || '192.168.1.67:8000';
         const protocol = req.protocol;
         const baseUrl = `${protocol}://${host}`;
 
-        // Initiate payment with Khalti E-Payment API (Sandbox/Test Environment)
+        // this part initiate the payment with Khalti E-Payment API the particular url of initiate
         const khaltiResponse = await axios.post(
             'https://a.khalti.com/api/v2/epayment/initiate/',
             {
                 return_url: `${baseUrl}/api/payments/khalti-callback`,
                 website_url: 'http://localhost:8081',
-                amount: amount * 100, // Convert to paisa
+                amount: amount * 100, 
                 purchase_order_id: purchase_order_id,
                 purchase_order_name: productName,
                 customer_info: {
@@ -45,8 +45,6 @@ export const initiateKhaltiPayment = async (req: Request, res: Response) => {
             }
         );
 
-        // Don't store in database yet - will be created during verification
-        // when we have the actual booking details
 
         return res.status(200).json({
             success: true,
@@ -74,7 +72,6 @@ export const initiateKhaltiPayment = async (req: Request, res: Response) => {
 export const khaltiCallback = async (req: Request, res: Response) => {
     const { pidx, txnId, amount, mobile, purchase_order_id, purchase_order_name, transaction_id } = req.query;
 
-    // Redirect to a simple success page with pidx as query param
     res.send(`
         <html>
             <head>
@@ -196,17 +193,17 @@ export const verifyKhaltiPayment = async (req: Request, res: Response) => {
                 return { updatedRequest, newPayment, booking };
             });
 
-            // 3. Send Notifications (Socket.io)
+            // this sends Notifications
             const io = req.app.get('socketio');
             if (io) {
-                // Notify Gainer
+                // notify the gainer
                 const gainerUserId = result.booking.gainer.UserId;
                 io.to(gainerUserId).emit('paymentSuccess', {
                     requestId: result.updatedRequest.RequestId,
                     status: 'Paid'
                 });
 
-                // Notify Organization
+                // notify Organization about the received payment
                 const org = await prisma.organization.findUnique({
                     where: { OrganizationId: result.booking.OrganizationId },
                     select: { UserId: true }
@@ -256,7 +253,6 @@ export const initiateEsewaPayment = async (req: Request, res: Response) => {
         const transaction_uuid = `ESEWA_${requestId}_${Date.now()}`;
 
         // Prepare signature string: total_amount=100,transaction_uuid=abcd,product_code=EPAYTEST
-        // Note: amount must be exact string as sent to eSewa
         const signatureString = `total_amount=${amount},transaction_uuid=${transaction_uuid},product_code=${ESEWA_MERCHANT_CODE}`;
 
         const hmac = crypto.createHmac('sha256', ESEWA_SECRET_KEY);

@@ -141,3 +141,42 @@ export const setDonorAvailability = async (req: Request, res: Response) => {
     user: userData,
   });
 };
+
+// Get all donors (for Gainers to browse)
+export const getAllDonors = async (req: Request, res: Response) => {
+  try {
+    const donors = await prisma.donor.findMany({
+      include: {
+        user: {
+          select: {
+            FullName: true,
+            Email: true,
+            Phone: true,
+          }
+        }
+      }
+    });
+
+    const formattedDonors = donors.map(donor => ({
+      id: donor.UserId,
+      donorId: donor.DonorId,
+      name: donor.user.FullName,
+      email: donor.user.Email,
+      phone: donor.user.Phone,
+      bloodType: donor.BloodType,
+      location: donor.Location,
+      lastDonationDate: donor.LastDonationDate,
+      eligibilityStatus: donor.EligibilityStatus,
+      isAvailable: donor.IsAvailable,
+      role: 'Donor'
+    }));
+
+    return res.status(200).json({
+      message: 'Donors retrieved successfully',
+      donors: formattedDonors
+    });
+  } catch (error: any) {
+    console.error('Error fetching donors:', error);
+    return res.status(500).json({ message: 'Error fetching donors', error: error.message });
+  }
+};
