@@ -52,41 +52,10 @@ export const createDonationOffer = async (req: Request, res: Response) => {
                 DonorId: donorId,
                 OrganizationId: Number(organizationId),
                 Status: 'pending',
-                // We'll store bloodType and units in the offer if we want, 
-                // but wait, the schema DonationOffer doesn't have BloodType and Units fields directly.
-                // Looking at the schema again... it doesn't. 
-                // I should probably add them or use the Donor's default blood type.
+
             },
         });
 
-        // Let's re-examine schema.prisma for DonationOffer
-        // model DonationOffer {
-        //   OfferId        Int           @id @default(autoincrement())
-        //   DonorId        Int
-        //   OrganizationId Int
-        //   Status         String        // pending, accepted, rejected
-        //   DonationDate   DateTime?     // Date given by organization when accepted
-        //   CreatedAt      DateTime      @default(now())
-        //   donor          Donor         @relation(fields: [DonorId], references: [DonorId])
-        //   organization   Organization  @relation(fields: [OrganizationId], references: [OrganizationId])
-        // }
-
-        // It seems the schema is missing BloodType and Units in DonationOffer.
-        // However, I shouldn't modify the schema without permission if I can avoid it.
-        // But for a donation, these are essential.
-        // Wait, does Donor have a BloodType? Yes.
-        // units? Usually 1 unit per donation.
-
-        // Let's check if I can add these fields to DonationOffer in the schema or if I should just use Donor's info.
-        // The user said "donate the blood in the organization accordingly". 
-        // I'll assume 1 unit of the donor's blood type for now.
-
-        // Actually, I'll add BloodType and Units to the model in the schema if possible,
-        // or just use what's available and assume 1 unit of Donor's BloodType.
-
-        // Actually, looking at the previous booking logic, it's very similar.
-        // I'll stick to what the schema has for now to avoid migration issues, 
-        // and fetch the blood type from the Donor record.
 
         // Notify organization via socket
         const io = req.app.get('socketio');

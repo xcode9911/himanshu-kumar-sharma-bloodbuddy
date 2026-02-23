@@ -1,7 +1,7 @@
-import type { Request, Response } from 'express';
-import type { Prisma } from '../../generated/prisma/client.js';
 import bcrypt from 'bcrypt';
+import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import type { Prisma } from '../../generated/prisma/client.js';
 import prisma from '../models/index.js';
 import { sendOTPEmail, sendPasswordResetOTPEmail } from '../utils/emailService.js';
 
@@ -161,8 +161,8 @@ export const register = async (req: Request, res: Response) => {
   // Validate role
   const validRoles = ['donor', 'gainer', 'organization'];
   if (!role || !validRoles.includes(role.toLowerCase())) {
-    return res.status(400).json({ 
-      message: 'Invalid role. Must be one of: donor, gainer, organization' 
+    return res.status(400).json({
+      message: 'Invalid role. Must be one of: donor, gainer, organization'
     });
   }
 
@@ -179,8 +179,8 @@ export const register = async (req: Request, res: Response) => {
   if (userRole === 'donor') {
     const { bloodType, location, lastDonationDate } = roleSpecificData;
     if (!bloodType || !location) {
-      return res.status(400).json({ 
-        message: 'Missing required fields for donor: bloodType, location' 
+      return res.status(400).json({
+        message: 'Missing required fields for donor: bloodType, location'
       });
     }
 
@@ -193,8 +193,8 @@ export const register = async (req: Request, res: Response) => {
   } else if (userRole === 'organization') {
     const { organizationName, location } = roleSpecificData;
     if (!organizationName || !location) {
-      return res.status(400).json({ 
-        message: 'Missing required fields for organization: organizationName, location' 
+      return res.status(400).json({
+        message: 'Missing required fields for organization: organizationName, location'
       });
     }
     sanitizedRoleData = { organizationName, location, ...(roleSpecificData.contact ? { contact: roleSpecificData.contact } : {}) };
@@ -229,8 +229,8 @@ export const register = async (req: Request, res: Response) => {
     });
 
     if (pendingOtp) {
-      return res.status(400).json({ 
-        message: 'Registration already in progress. Please check your email for OTP or use resend OTP.' 
+      return res.status(400).json({
+        message: 'Registration already in progress. Please check your email for OTP or use resend OTP.'
       });
     }
 
@@ -274,8 +274,8 @@ export const register = async (req: Request, res: Response) => {
           Code: otpCode,
         },
       });
-      return res.status(500).json({ 
-        message: 'Failed to send OTP email. Please try again.' 
+      return res.status(500).json({
+        message: 'Failed to send OTP email. Please try again.'
       });
     }
 
@@ -294,9 +294,9 @@ export const register = async (req: Request, res: Response) => {
     if (error.code === 'P2002') {
       return res.status(400).json({ message: 'Email already in use' });
     }
-    return res.status(500).json({ 
-      message: `Error registering ${userRole}`, 
-      error: error.message 
+    return res.status(500).json({
+      message: `Error registering ${userRole}`,
+      error: error.message
     });
   }
 };
@@ -356,8 +356,8 @@ export const resendOTP = async (req: Request, res: Response) => {
     });
 
     if (!pendingOtp || !pendingOtp.RegistrationData) {
-      return res.status(404).json({ 
-        message: 'No pending registration found. Please register first.' 
+      return res.status(404).json({
+        message: 'No pending registration found. Please register first.'
       });
     }
 
@@ -532,7 +532,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
       // Update OTP to link with user and mark as used
       await tx.otp.update({
         where: { OtpId: otp.OtpId },
-        data: { 
+        data: {
           IsUsed: true,
           UserId: user.UserId,
         },
@@ -868,7 +868,7 @@ export const checkEligibility = async (req: Request, res: Response) => {
   const effectiveUserId = authUserId ?? userId;
 
   const requiredKeys: Array<keyof EligibilityAnswers> = [
-    'q1','q2','q3','q4','q5','q6','q7','q8','q9','q10','q11','q12','q13','q14','q15',
+    'q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10', 'q11', 'q12', 'q13', 'q14', 'q15',
   ];
 
   if (!answers || typeof answers !== 'object') {
@@ -974,4 +974,41 @@ export const refreshToken = async (req: Request, res: Response) => {
     token: newToken,
     user: userData,
   });
+};
+
+/**
+ * Get any user's profile by ID (safe fields only)
+ */
+export const getUserProfile = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { UserId: userId },
+      include: {
+        donor: true,
+        gainer: true,
+        organization: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Build safe payload using existing helper
+    const userData = buildUserPayload(user);
+
+    return res.status(200).json({
+      message: 'Profile retrieved successfully',
+      user: userData,
+    });
+  } catch (error: any) {
+    console.error('Error fetching user profile:', error);
+    return res.status(500).json({ message: 'Error fetching user profile', error: error.message });
+  }
 };
