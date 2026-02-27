@@ -27,8 +27,7 @@ const getUserIdFromAuthHeader = (req: Request): { userId: string | null; error?:
 /**
  * Notifies all available donors about an emergency request
  */
-async function notifyDonors(req: Request, requestId: number, bloodType: string, gainerName: string, units: number) 
-{
+async function notifyDonors(req: Request, requestId: number, bloodType: string, gainerName: string, units: number) {
     const io = req.app.get('socketio');
 
     // Find all available donors with matching blood type
@@ -186,8 +185,10 @@ export const acceptEmergencyRequest = async (req: Request, res: Response) => {
                         ResponseId: response.ResponseId,
                         DonorId: donorId,
                         GainerId: request.GainerId,
-                        Latitude: parseFloat(latitude),
-                        Longitude: parseFloat(longitude),
+                        DonorLat: parseFloat(latitude),
+                        DonorLong: parseFloat(longitude),
+                        // Initialize gainer location if we have it in some way, 
+                        // but usually gainer location is updated separately
                         IsActive: true
                     }
                 });
@@ -204,7 +205,8 @@ export const acceptEmergencyRequest = async (req: Request, res: Response) => {
                 requestId: request.RequestId,
                 donorName: user.FullName,
                 donorPhone: user.Phone,
-                location: latitude && longitude ? { latitude, longitude } : null
+                donorLocation: latitude && longitude ? { latitude, longitude } : null,
+                gainerLocation: null // Will be updated
             });
 
             await createNotification(
@@ -343,6 +345,98 @@ export const stopEmergencyRequest = async (req: Request, res: Response) => {
         return res.status(200).json({ message: 'Emergency request stopped successfully' });
     } catch (error: any) {
         console.error('Error in stopEmergencyRequest:', error);
+        return res.status(500).json({ message: 'Internal server error', error: error.message });
+    }
+};
+
+export const updateLocation = async (req: Request, res: Response) => {
+    const { requestId } = req.params;
+    const { latitude, longitude, role } = req.body; // role: 'donor' or 'gainer'
+    const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
+
+    if (authError || !authUserId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+        const request = await prisma.bloodRequest.findUnique({
+            where: { RequestId: parseInt(requestId as string) },
+            include: { donorResponses: { where: { Status: 'Accepted' }, include: { location: true } } }
+        });
+
+        if (!request || request.Status !== 'Accepted') {
+            return res.status(404).json({ message: 'Active accepted request not found' });
+        }
+
+        const locationRecord = request.donorResponses[0]?.location;
+        if (!locationRecord) {
+            return res.status(404).json({ message: 'Location sharing session not found' });
+        }
+
+        const data: any = {};
+        if (role === 'donor') {
+            data.DonorLat = parseFloat(latitude);
+            data.DonorLong = parseFloat(longitude);
+        } else {
+            data.GainerLat = parseFloat(latitude);
+            data.GainerLong = parseFloat(longitude);
+        }
+
+        const updatedLocation = await prisma.location.update({
+            where: { LocationId: locationRecord.LocationId },
+            data
+        });
+
+        const io = req.app.get('socketio');
+        if (io) {
+            const acceptedDonor = request.donorResponses[0];
+            if (acceptedDonor) {
+                const gainer = await prisma.gainer.findUnique({ where: { GainerId: request.GainerId }, select: { UserId: true } });
+                const donor = await prisma.donor.findUnique({ where: { DonorId: acceptedDonor.DonorId }, select: { UserId: true } });
+
+                if (gainer && donor) {
+                    const updatePayload = {
+                        requestId: request.RequestId,
+                        donorLocation: { lat: updatedLocation.DonorLat, lng: updatedLocation.DonorLong },
+                        gainerLocation: updatedLocation.GainerLat ? { lat: updatedLocation.GainerLat, lng: updatedLocation.GainerLong } : null
+                    };
+                    io.to(gainer.UserId).emit('locationUpdated', updatePayload);
+                    io.to(donor.UserId).emit('locationUpdated', updatePayload);
+                }
+            }
+        }
+
+        return res.status(200).json({ message: 'Location updated', location: updatedLocation });
+    } catch (error: any) {
+        console.error('Error in updateLocation:', error);
+        return res.status(500).json({ message: 'Internal server error', error: error.message });
+    }
+};
+
+export const getLocation = async (req: Request, res: Response) => {
+    const { requestId } = req.params;
+
+    try {
+        const location = await prisma.location.findFirst({
+            where: {
+                response: {
+                    RequestId: parseInt(requestId as string),
+                    Status: 'Accepted'
+                },
+                IsActive: true
+            }
+        });
+
+        if (!location) {
+            return res.status(404).json({ message: 'Active location sharing session not found' });
+        }
+
+        return res.status(200).json({
+            donorLocation: { lat: location.DonorLat, lng: location.DonorLong },
+            gainerLocation: location.GainerLat ? { lat: location.GainerLat, lng: location.GainerLong } : null
+        });
+    } catch (error: any) {
+        console.error('Error in getLocation:', error);
         return res.status(500).json({ message: 'Internal server error', error: error.message });
     }
 };
