@@ -1,5 +1,5 @@
 import express from "express";
-import { createCampaign, deleteCampaign, getAllCampaigns, getMyCampaigns, updateCampaign, upload } from "../controllers/campaignController.js";
+import { createCampaign, deleteCampaign, getAllCampaigns, getAttendees, getMyCampaigns, recordAttendance, updateCampaign, upload } from "../controllers/campaignController.js";
 import { authenticateUser } from "../utils/authMiddleware.js";
 
 const router = express.Router();
@@ -14,5 +14,9 @@ router.get("/my-campaigns", authenticateUser, getMyCampaigns);
 router.post("/create", authenticateUser, upload.single("poster"), createCampaign);
 router.put("/:id", authenticateUser, upload.single("poster"), updateCampaign);
 router.delete("/:id", authenticateUser, deleteCampaign);
+
+// Attendance routes
+router.post("/record-attendance", authenticateUser, recordAttendance);
+router.get("/attendees/:id", authenticateUser, getAttendees);
 
 export default router;
