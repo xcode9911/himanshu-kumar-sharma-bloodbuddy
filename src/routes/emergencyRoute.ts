@@ -3,7 +3,9 @@ import {
     acceptEmergencyRequest,
     cancelEmergencyRequest,
     createEmergencyRequest,
-    stopEmergencyRequest
+    getLocation,
+    stopEmergencyRequest,
+    updateLocation
 } from '../controllers/emergencyController.js';
 import catchAsync from '../utils/catchAsync.js';
 
@@ -13,5 +15,7 @@ router.post('/create', catchAsync(createEmergencyRequest));
 router.patch('/accept/:requestId', catchAsync(acceptEmergencyRequest));
 router.patch('/cancel/:requestId', catchAsync(cancelEmergencyRequest));
 router.patch('/stop/:requestId', catchAsync(stopEmergencyRequest));
+router.patch('/location/:requestId', catchAsync(updateLocation));
+router.get('/location/:requestId', catchAsync(getLocation));
 
 export default router;
