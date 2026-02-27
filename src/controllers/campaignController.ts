@@ -4,7 +4,6 @@ import prisma from "../models/index.js";
 import catchAsync from "../utils/catchAsync.js";
 
 // Multer Storage Configuration
-// Multer Storage Configuration
 const storage = multer.memoryStorage();
 
 export const upload = multer({
@@ -15,15 +14,14 @@ export const upload = multer({
 export const createCampaign = catchAsync(async (req: Request, res: Response) => {
     const { title, description, location, startDate, endDate } = req.body;
     // @ts-ignore
-    const userId = req.user?.userId; // Assuming auth middleware adds user
+    const userId = req.user?.userId;
 
     if (!userId) {
         throw new Error("User not authenticated");
     }
 
-    // Find Organization ID for the user
-    const organization = await prisma.organization.findUnique({
-        where: { UserId: userId }
+    const organization = await prisma.organization.findFirst({
+        where: { UserId: userId as string }
     });
 
     if (!organization) {
@@ -51,7 +49,6 @@ export const createCampaign = catchAsync(async (req: Request, res: Response) => 
         data: campaignData
     });
 
-    // Notify Users (Donors & Gainers)
     const io = req.app.get('socketio');
     if (io) {
         io.emit("newCampaign", {
@@ -61,11 +58,6 @@ export const createCampaign = catchAsync(async (req: Request, res: Response) => 
             posterUrl: campaign.PosterData ? `data:${campaign.PosterType};base64,${Buffer.from(campaign.PosterData).toString('base64')}` : null
         });
     }
-
-    // Create Notifications in DB for all users (This might be heavy for all users, maybe target generic topic users?)
-    // For now, let's just create a generic notification for the organization to confirm
-    // Or real implementation would loop through relevant donors. 
-    // Skipping bulk DB insert for now to avoid performance hit on large userbase without a queue.
 
     res.status(201).json({
         message: "Campaign created successfully",
@@ -77,38 +69,20 @@ export const getMyCampaigns = catchAsync(async (req: Request, res: Response) => 
     // @ts-ignore
     const userId = req.user?.userId;
 
-    if (!userId) {
-        const campaigns = await prisma.campaign.findMany({
-            include: { organization: true },
-            orderBy: { StartDate: 'asc' }
-        });
-        res.status(200).json({ campaigns });
+    const organization = await prisma.organization.findFirst({
+        where: { UserId: userId as string }
+    });
+
+    if (!organization) {
+        res.status(404).json({ message: "Organization not found" });
         return;
     }
 
-    const organization = await prisma.organization.findUnique({
-        where: { UserId: userId }
+    const campaigns = await prisma.campaign.findMany({
+        where: { OrganizationId: organization.OrganizationId },
+        include: { organization: true },
+        orderBy: { StartDate: 'desc' }
     });
-
-    let campaigns;
-    if (organization) {
-        // Return organization's campaigns
-        campaigns = await prisma.campaign.findMany({
-            where: { OrganizationId: organization.OrganizationId },
-            orderBy: { StartDate: 'desc' }
-        });
-    } else {
-        // Return all active campaigns for donors/gainers
-        campaigns = await prisma.campaign.findMany({
-            include: { organization: true },
-            orderBy: { StartDate: 'asc' }
-        });
-    }
-
-    // Map to frontend friendly format if needed, but Prisma model should be fine
-    // Frontend expects lowercase fields? Check frontend interface: id, title...
-    // Backend returns Title, Description...
-    // We should map them.
 
     const mappedCampaigns = campaigns.map(c => ({
         id: c.CampaignId.toString(),
@@ -119,10 +93,41 @@ export const getMyCampaigns = catchAsync(async (req: Request, res: Response) => 
         endDate: c.EndDate,
         posterUrl: c.PosterData ? `data:${c.PosterType};base64,${Buffer.from(c.PosterData).toString('base64')}` : null,
         status: new Date() < new Date(c.EndDate) ? 'active' : 'ended',
-        organizationName: (c as any).organization?.OrganizationName
+        organizationName: c.organization.OrganizationName
     }));
 
     res.status(200).json({ campaigns: mappedCampaigns });
+});
+
+export const getAllCampaigns = catchAsync(async (req: Request, res: Response) => {
+    const campaigns = await prisma.campaign.findMany({
+        include: {
+            organization: {
+                include: {
+                    user: true
+                }
+            }
+        },
+        orderBy: {
+            StartDate: 'asc'
+        }
+    });
+
+    const formattedCampaigns = campaigns.map(camp => ({
+        id: camp.CampaignId.toString(),
+        title: camp.Title,
+        description: camp.Description,
+        location: camp.Location,
+        startDate: camp.StartDate.toISOString(),
+        endDate: camp.EndDate.toISOString(),
+        posterUrl: camp.PosterData ? `data:${camp.PosterType};base64,${Buffer.from(camp.PosterData).toString('base64')}` : null,
+        status: new Date() < new Date(camp.EndDate) ? 'active' : 'ended',
+        organizationName: camp.organization.OrganizationName,
+        organizationPhone: camp.organization.Contact || camp.organization.user.Phone,
+        organizationEmail: camp.organization.user.Email
+    }));
+
+    res.status(200).json({ campaigns: formattedCampaigns });
 });
 
 export const updateCampaign = catchAsync(async (req: Request, res: Response) => {
@@ -134,8 +139,8 @@ export const updateCampaign = catchAsync(async (req: Request, res: Response) => 
     if (!userId) {
         throw new Error("User not authenticated");
     }
-    const organization = await prisma.organization.findUnique({
-        where: { UserId: userId }
+    const organization = await prisma.organization.findFirst({
+        where: { UserId: userId as string }
     });
 
     if (!organization) {
@@ -178,33 +183,103 @@ export const deleteCampaign = catchAsync(async (req: Request, res: Response) => 
     res.status(200).json({ message: "Campaign deleted successfully" });
 });
 
-export const getAllCampaigns = catchAsync(async (req: Request, res: Response) => {
-    const campaigns = await prisma.campaign.findMany({
-        include: {
-            organization: {
-                include: {
-                    user: true
-                }
-            }
-        },
-        orderBy: {
-            StartDate: 'asc'
+export const recordAttendance = catchAsync(async (req: Request, res: Response) => {
+    const { campaignId, userId, bloodType, units } = req.body;
+    // @ts-ignore
+    const authUserId = req.user?.userId;
+
+    if (!authUserId) {
+        return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    const campaign = await prisma.campaign.findUnique({
+        where: { CampaignId: Number(campaignId) },
+        include: { organization: true }
+    });
+
+    if (!campaign) {
+        return res.status(404).json({ message: "Campaign not found" });
+    }
+
+    // Check if user already attended
+    // @ts-ignore
+    const existingAttendance = await prisma.campAttendance.findFirst({
+        where: {
+            CampaignId: Number(campaignId),
+            UserId: userId || authUserId
         }
     });
 
-    const formattedCampaigns = campaigns.map(camp => ({
-        id: camp.CampaignId.toString(),
-        title: camp.Title,
-        description: camp.Description,
-        location: camp.Location,
-        startDate: camp.StartDate.toISOString(),
-        endDate: camp.EndDate.toISOString(),
-        posterUrl: camp.PosterData ? `data:${camp.PosterType};base64,${Buffer.from(camp.PosterData).toString('base64')}` : null,
-        status: new Date() < new Date(camp.EndDate) ? 'active' : 'ended',
-        organizationName: camp.organization.OrganizationName,
-        organizationPhone: camp.organization.Contact || camp.organization.user.Phone,
-        organizationEmail: camp.organization.user.Email
+    if (existingAttendance) {
+        return res.status(400).json({ message: "You have already attended this camp!" });
+    }
+
+    // @ts-ignore
+    const attendance = await prisma.campAttendance.create({
+        data: {
+            CampaignId: Number(campaignId),
+            UserId: userId || authUserId,
+            BloodType: bloodType,
+            Units: Number(units) || 1
+        }
+    });
+
+    const organizationId = campaign.OrganizationId;
+    const existingInventory = await prisma.inventory.findFirst({
+        where: {
+            OrganizationId: organizationId,
+            BloodType: bloodType
+        }
+    });
+
+    if (existingInventory) {
+        await prisma.inventory.update({
+            where: { InventoryId: existingInventory.InventoryId },
+            data: { Units: existingInventory.Units + (Number(units) || 1) }
+        });
+    } else {
+        await prisma.inventory.create({
+            data: {
+                OrganizationId: organizationId,
+                BloodType: bloodType,
+                Units: Number(units) || 1
+            }
+        });
+    }
+
+    res.status(201).json({
+        message: "Attendance recorded and inventory updated successfully",
+        attendance
+    });
+});
+
+export const getAttendees = catchAsync(async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    // @ts-ignore
+    const attendances = await prisma.campAttendance.findMany({
+        where: { CampaignId: Number(id) },
+        include: {
+            user: {
+                select: {
+                    FullName: true,
+                    Email: true,
+                    Phone: true
+                }
+            }
+        },
+        orderBy: { CreatedAt: 'desc' }
+    });
+
+    const attendees = attendances.map((a: any) => ({
+        id: a.AttendanceId,
+        fullName: a.user.FullName,
+        email: a.user.Email,
+        phone: a.user.Phone,
+        bloodType: a.BloodType,
+        units: a.Units,
+        attendedAt: a.CreatedAt
     }));
 
-    res.status(200).json({ campaigns: formattedCampaigns });
+    res.status(200).json({ attendees });
 });

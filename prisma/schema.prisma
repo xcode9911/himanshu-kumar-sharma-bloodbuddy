@@ -28,6 +28,7 @@ model User {
   organization     Organization?
   otps             Otp[]
   notifications    Notification[]
+  campAttendances  CampAttendance[]
 }
 
 model Notification {
@@ -97,7 +98,19 @@ model Campaign {
   EndDate        DateTime
   PosterData     Bytes?
   PosterType     String?
-  organization   Organization @relation(fields: [OrganizationId], references: [OrganizationId])
+  organization   Organization     @relation(fields: [OrganizationId], references: [OrganizationId])
+  attendances    CampAttendance[]
+}
+
+model CampAttendance {
+  AttendanceId Int      @id @default(autoincrement())
+  CampaignId   Int
+  UserId       String
+  BloodType    String
+  Units        Int      @default(1)
+  CreatedAt    DateTime @default(now())
+  campaign     Campaign @relation(fields: [CampaignId], references: [CampaignId])
+  user         User     @relation(fields: [UserId], references: [UserId])
 }
 
 model BloodRequest {
@@ -179,8 +192,10 @@ model Location {
   ResponseId   Int             @unique
   DonorId      Int
   GainerId     Int
-  Latitude     Float
-  Longitude    Float
+  DonorLat     Float?
+  DonorLong    Float?
+  GainerLat    Float?
+  GainerLong   Float?
   IsActive     Boolean         @default(true)
   CreatedAt    DateTime        @default(now())
   UpdatedAt    DateTime        @updatedAt

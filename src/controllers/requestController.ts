@@ -335,12 +335,20 @@ export const getBookingsByUserId = async (req: Request, res: Response) => {
         } else if (user.Role.toLowerCase() === 'donor' && user.donor) {
             requests = await prisma.bloodRequest.findMany({
                 where: {
-                    donorResponses: {
-                        some: {
-                            DonorId: user.donor.DonorId,
-                            Status: 'Accepted'
+                    OR: [
+                        {
+                            donorResponses: {
+                                some: {
+                                    DonorId: user.donor.DonorId,
+                                    Status: 'Accepted'
+                                }
+                            }
+                        },
+                        {
+                            Status: 'Emergency',
+                            BloodType: user.donor.BloodType
                         }
-                    }
+                    ]
                 },
                 include: {
                     gainer: {
