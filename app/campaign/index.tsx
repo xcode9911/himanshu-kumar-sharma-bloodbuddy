@@ -26,6 +26,7 @@ interface Campaign {
     endDate: string
     posterUrl: string
     status: string
+    organizationName?: string
 }
 
 export default function CampaignListScreen() {
@@ -204,6 +205,38 @@ export default function CampaignListScreen() {
                 <Text style={styles.description} numberOfLines={2}>
                     {item.description}
                 </Text>
+
+                {userRole === 'organization' && (
+                    <View style={styles.orgActions}>
+                        <TouchableOpacity
+                            style={[styles.orgActionBtn, styles.qrBtn]}
+                            onPress={(e) => {
+                                e.stopPropagation();
+                                router.push({
+                                    pathname: "/campaign/qr/[id]",
+                                    params: { id: item.id, title: item.title, location: item.location, orgName: (item as any).organizationName }
+                                });
+                            }}
+                        >
+                            <Ionicons name="qr-code" size={16} color="#FFF" />
+                            <Text style={styles.orgActionBtnText}>View QR</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.orgActionBtn, styles.attendeesBtn]}
+                            onPress={(e) => {
+                                e.stopPropagation();
+                                router.push({
+                                    pathname: "/campaign/attendees/[id]",
+                                    params: { id: item.id, title: item.title }
+                                });
+                            }}
+                        >
+                            <Ionicons name="people" size={16} color="#FFF" />
+                            <Text style={styles.orgActionBtnText}>Attendees</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
             </View>
         </TouchableOpacity>
     )
@@ -232,11 +265,22 @@ export default function CampaignListScreen() {
                         <Text style={styles.subtitle}>Active blood donation events near you</Text>
                     </View>
                 </View>
-                {userRole === 'organization' && (
-                    <TouchableOpacity onPress={() => router.push("/campaign/create")}>
-                        <Ionicons name="add-circle" size={28} color="#D11B31" />
-                    </TouchableOpacity>
-                )}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: scale(8) }}>
+                    {userRole !== 'organization' && (
+                        <TouchableOpacity
+                            style={styles.scanHeaderBtn}
+                            onPress={() => router.push("/campaign/scan")}
+                        >
+                            <Ionicons name="qr-code-outline" size={20} color="#D11B31" />
+                            <Text style={styles.scanHeaderBtnText}>Scan</Text>
+                        </TouchableOpacity>
+                    )}
+                    {userRole === 'organization' && (
+                        <TouchableOpacity onPress={() => router.push("/campaign/create")}>
+                            <Ionicons name="add-circle" size={28} color="#D11B31" />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
 
             {loading ? (
@@ -369,5 +413,49 @@ const styles = StyleSheet.create({
         color: "#9CA3AF",
         textAlign: "center",
         marginTop: verticalScale(8),
+    },
+    scanHeaderBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#FFF",
+        paddingHorizontal: scale(10),
+        paddingVertical: verticalScale(6),
+        borderRadius: moderateScale(10),
+        borderWidth: 1,
+        borderColor: "#D11B31",
+        gap: scale(4),
+    },
+    scanHeaderBtnText: {
+        fontSize: moderateScale(13),
+        fontWeight: "700",
+        color: "#D11B31",
+    },
+    orgActions: {
+        flexDirection: "row",
+        gap: scale(8),
+        marginTop: verticalScale(16),
+        paddingTop: verticalScale(12),
+        borderTopWidth: 1,
+        borderTopColor: "#F3F4F6",
+    },
+    orgActionBtn: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: scale(6),
+        paddingVertical: verticalScale(10),
+        borderRadius: moderateScale(10),
+    },
+    qrBtn: {
+        backgroundColor: "#111827",
+    },
+    attendeesBtn: {
+        backgroundColor: "#4B5563",
+    },
+    orgActionBtnText: {
+        color: "#FFF",
+        fontSize: moderateScale(12),
+        fontWeight: "700",
     },
 })

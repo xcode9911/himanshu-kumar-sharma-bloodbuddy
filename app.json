@@ -47,7 +47,8 @@
       "@react-native-community/datetimepicker",
       "expo-web-browser",
       "expo-asset",
-      "expo-image-picker"
+      "expo-image-picker",
+      "expo-barcode-scanner"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -8,6 +8,7 @@ import { connectSocket, getSocket } from "../config/socket";
 import EmergencyFAB from "./EmergencyFAB";
 import EmergencyModal from "./EmergencyModal";
 import EmergencyStatusModal from "./EmergencyStatusModal";
+import MapModal from "./MapModal";
 
 const { width } = Dimensions.get("window")
 const ACTIVE_BG = "#D11B31"
@@ -57,6 +58,10 @@ const Navigation = ({ userType: propUserType, initialTab, onTabChange }: Navigat
   const [activeEmergencyRequest, setActiveEmergencyRequest] = useState<any>(null)
   const [incomingEmergency, setIncomingEmergency] = useState<any>(null)
   const [emergencyStatusModalVisible, setEmergencyStatusModalVisible] = useState(false)
+  const [mapModalVisible, setMapModalVisible] = useState(false)
+  const [donorLocation, setDonorLocation] = useState<any>(null)
+  const [gainerLocation, setGainerLocation] = useState<any>(null)
+  const locationSubscription = useRef<Location.LocationSubscription | null>(null)
 
   // SOS Animation Values
   const pulseAnim = useRef(new Animated.Value(1)).current
@@ -101,6 +106,13 @@ const Navigation = ({ userType: propUserType, initialTab, onTabChange }: Navigat
       })
     }
 
+    // Location updates
+    socket.off("locationUpdated")
+    socket.on("locationUpdated", (data: any) => {
+      if (data.donorLocation) setDonorLocation(data.donorLocation)
+      if (data.gainerLocation) setGainerLocation(data.gainerLocation)
+    })
+
     // Gainer notifications
     if (role === "gainer") {
       socket.off("emergencyAccepted")
@@ -116,6 +128,8 @@ const Navigation = ({ userType: propUserType, initialTab, onTabChange }: Navigat
           ...data,
           status: 'Accepted'
         }))
+        if (data.donorLocation) setDonorLocation(data.donorLocation)
+        startLocationTracking(data.requestId || data.RequestId, 'gainer')
       })
 
       socket.off("emergencyDonorCancelled")
@@ -130,6 +144,8 @@ const Navigation = ({ userType: propUserType, initialTab, onTabChange }: Navigat
           donorName: null,
           donorPhone: null
         }))
+        setDonorLocation(null)
+        stopLocationTracking()
       })
     }
   }
@@ -160,7 +176,9 @@ const Navigation = ({ userType: propUserType, initialTab, onTabChange }: Navigat
       gainerName: data.gainerName || data.gainer?.user?.FullName,
       donorName: data.donorName || data.DonorName,
       donorPhone: data.donorPhone || data.DonorPhone,
-      organizationName: data.organizationName || data.organization?.OrganizationName || data.organization?.organizationName
+      organizationName: data.organizationName || data.organization?.OrganizationName || data.organization?.organizationName,
+      donorLocation: data.donorLocation,
+      gainerLocation: data.gainerLocation
     }
   }
 
@@ -193,6 +211,10 @@ const Navigation = ({ userType: propUserType, initialTab, onTabChange }: Navigat
             }
           } else {
             if (role === 'gainer') setActiveEmergencyRequest(normalized)
+            if (role === 'donor') {
+              setIncomingEmergency(normalized)
+              startSOSAnimation()
+            }
           }
         }
       }
@@ -200,6 +222,54 @@ const Navigation = ({ userType: propUserType, initialTab, onTabChange }: Navigat
       console.error("Error fetching active emergency:", error)
     }
   }
+
+  const startLocationTracking = async (requestId: number, role: 'donor' | 'gainer') => {
+    try {
+      if (locationSubscription.current) return;
+
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+
+      locationSubscription.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          distanceInterval: 10, // Update every 10 meters
+          timeInterval: 5000,    // Or every 5 seconds
+        },
+        async (location) => {
+          const { latitude, longitude } = location.coords;
+          if (role === 'donor') setDonorLocation({ lat: latitude, lng: longitude });
+          else setGainerLocation({ lat: latitude, lng: longitude });
+
+          // Send to backend
+          const token = await AsyncStorage.getItem("authToken");
+          if (token) {
+            fetch(API_ENDPOINTS.UPDATE_EMERGENCY_LOCATION(requestId), {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify({ latitude, longitude, role })
+            });
+          }
+        }
+      );
+    } catch (error) {
+      console.error("Error starting location tracking:", error);
+    }
+  }
+
+  const stopLocationTracking = () => {
+    if (locationSubscription.current) {
+      locationSubscription.current.remove();
+      locationSubscription.current = null;
+    }
+  }
+
+  useEffect(() => {
+    return () => stopLocationTracking();
+  }, []);
 
   const handleCreateEmergency = async () => {
     try {
@@ -249,9 +319,12 @@ const Navigation = ({ userType: propUserType, initialTab, onTabChange }: Navigat
       if (response.ok) {
         Alert.alert("Stopped", "Emergency request has been stopped.")
         setActiveEmergencyRequest(null)
+        stopLocationTracking()
       }
     } catch (error) {
       Alert.alert("Error", "Something went wrong")
+    } finally {
+      stopLocationTracking()
     }
   }
 
@@ -294,6 +367,7 @@ const Navigation = ({ userType: propUserType, initialTab, onTabChange }: Navigat
                   status: 'Accepted'
                 }))
                 setEmergencyStatusModalVisible(true) // Keep it open to show status
+                startLocationTracking(requestId, 'donor')
               }
             } catch (error) {
               Alert.alert("Error", "Something went wrong fetching location or accepting request")
@@ -317,6 +391,8 @@ const Navigation = ({ userType: propUserType, initialTab, onTabChange }: Navigat
         Alert.alert("Cancelled", "You have cancelled your help. The request is visible to others again.")
         setEmergencyStatusModalVisible(false)
         setIncomingEmergency(null)
+        setDonorLocation(null)
+        stopLocationTracking()
       }
     } catch (error) {
       Alert.alert("Error", "Something went wrong")
@@ -405,6 +481,16 @@ const Navigation = ({ userType: propUserType, initialTab, onTabChange }: Navigat
         }}
         onAccept={handleAcceptEmergency}
         onCancel={handleCancelEmergency}
+        onTrackLocation={() => setMapModalVisible(true)}
+      />
+
+      <MapModal
+        visible={mapModalVisible}
+        onClose={() => setMapModalVisible(false)}
+        donorLocation={donorLocation}
+        gainerLocation={gainerLocation}
+        donorName={userType === 'gainer' ? activeEmergencyRequest?.donorName : 'You'}
+        gainerName={userType === 'donor' ? incomingEmergency?.gainerName : 'You'}
       />
     </View>
   )

@@ -41,6 +41,8 @@ export const API_ENDPOINTS = {
   ACCEPT_EMERGENCY: (requestId: number) => `${API_BASE_URL}/api/emergency/accept/${requestId}`,
   CANCEL_EMERGENCY: (requestId: number) => `${API_BASE_URL}/api/emergency/cancel/${requestId}`,
   STOP_EMERGENCY: (requestId: number) => `${API_BASE_URL}/api/emergency/stop/${requestId}`,
+  UPDATE_EMERGENCY_LOCATION: (requestId: number) => `${API_BASE_URL}/api/emergency/location/${requestId}`,
+  GET_EMERGENCY_LOCATION: (requestId: number) => `${API_BASE_URL}/api/emergency/location/${requestId}`,
   INITIATE_KHALTI: `${API_BASE_URL}/api/payments/initiate-khalti`,
   VERIFY_KHALTI: `${API_BASE_URL}/api/payments/verify-khalti`,
   INITIATE_ESEWA: `${API_BASE_URL}/api/payments/initiate-esewa`,
@@ -48,6 +50,8 @@ export const API_ENDPOINTS = {
   GET_PAYMENT_HISTORY: `${API_BASE_URL}/api/payments/history`,
   GET_DONORS: `${API_BASE_URL}/api/donors/getDonors`,
   GET_PROFILE: (userId: string) => `${API_BASE_URL}/api/users/profile/${userId}`,
+  RECORD_ATTENDANCE: `${API_BASE_URL}/api/campaigns/record-attendance`,
+  GET_ATTENDEES: (id: string | number) => `${API_BASE_URL}/api/campaigns/attendees/${id}`,
 }
 
 

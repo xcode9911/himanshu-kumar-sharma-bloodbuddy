@@ -26,9 +26,10 @@ export default function EmergencyModal({
         <Modal animationType="slide" transparent={true} visible={visible} onRequestClose={onClose}>
             <View style={styles.modalOverlay}>
                 <View style={styles.emergencyModalContent}>
+                    <View style={styles.modalHandle} />
                     <View style={styles.emergencyHeader}>
                         <View style={styles.emergencyIconContainer}>
-                            <Ionicons name="warning" size={32} color="#D11B31" />
+                            <Ionicons name="warning" size={moderateScale(32)} color="#D11B31" />
                         </View>
                         <Text style={styles.emergencyTitle}>Emergency Request</Text>
                         <Text style={styles.emergencySubtitle}>
@@ -37,14 +38,14 @@ export default function EmergencyModal({
                     </View>
                     <View style={styles.pickerSection}>
                         <Text style={styles.pickerLabel}>Required Blood Type</Text>
-                        <View style={styles.bloodTypeGrid}>
+                        <View style={styles.chipsRow}>
                             {BLOOD_TYPES.map((type) => (
                                 <TouchableOpacity
                                     key={type}
-                                    style={[styles.bloodTypeBox, bloodType === type && styles.selectedBloodTypeBox]}
+                                    style={[styles.chip, bloodType === type && styles.chipSelected]}
                                     onPress={() => setBloodType(type)}
                                 >
-                                    <Text style={[styles.bloodTypeText, bloodType === type && styles.selectedBloodTypeText]}>
+                                    <Text style={[styles.chipText, bloodType === type && styles.chipTextSelected]}>
                                         {type}
                                     </Text>
                                 </TouchableOpacity>
@@ -73,15 +74,29 @@ export default function EmergencyModal({
 const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
-        backgroundColor: "rgba(0,0,0,0.5)",
+        backgroundColor: "rgba(0,0,0,0.18)",
         justifyContent: "flex-end",
     },
     emergencyModalContent: {
         backgroundColor: "#fff",
-        borderTopLeftRadius: moderateScale(32),
-        borderTopRightRadius: moderateScale(32),
-        padding: scale(24),
-        paddingBottom: verticalScale(40),
+        borderTopLeftRadius: moderateScale(26),
+        borderTopRightRadius: moderateScale(26),
+        paddingHorizontal: scale(16),
+        paddingTop: verticalScale(10),
+        paddingBottom: verticalScale(22),
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: moderateScale(6) },
+        shadowOpacity: 0.18,
+        shadowRadius: moderateScale(16),
+        elevation: 12,
+    },
+    modalHandle: {
+        alignSelf: "center",
+        width: scale(44),
+        height: verticalScale(5),
+        borderRadius: moderateScale(99),
+        backgroundColor: "#E5E7EB",
+        marginBottom: verticalScale(16),
     },
     emergencyHeader: {
         alignItems: "center",
@@ -97,10 +112,11 @@ const styles = StyleSheet.create({
         marginBottom: verticalScale(16),
     },
     emergencyTitle: {
-        fontSize: moderateScale(22),
+        fontSize: moderateScale(20),
         fontWeight: "800",
-        color: "#111827",
-        marginBottom: verticalScale(8),
+        color: "#D11B31",
+        textAlign: "center",
+        marginBottom: verticalScale(4),
     },
     emergencySubtitle: {
         fontSize: moderateScale(14),
@@ -119,34 +135,28 @@ const styles = StyleSheet.create({
         textTransform: "uppercase",
         letterSpacing: 0.5,
     },
-    bloodTypeGrid: {
+    chipsRow: {
         flexDirection: "row",
         flexWrap: "wrap",
-        gap: scale(10),
-        justifyContent: "space-between",
+        gap: scale(8),
+        marginBottom: verticalScale(10),
     },
-    bloodTypeBox: {
-        width: "23%",
-        height: verticalScale(45),
-        borderRadius: moderateScale(12),
-        borderWidth: 1,
-        borderColor: "#E5E7EB",
-        justifyContent: "center",
-        alignItems: "center",
-        marginBottom: verticalScale(8),
+    chip: {
+        backgroundColor: "#FEE2E2",
+        borderRadius: moderateScale(20),
+        paddingVertical: verticalScale(8),
+        paddingHorizontal: scale(14),
     },
-    selectedBloodTypeBox: {
-        borderColor: "#D11B31",
-        backgroundColor: "#FEF2F2",
+    chipSelected: {
+        backgroundColor: "#D11B31",
     },
-    bloodTypeText: {
-        fontSize: moderateScale(14),
-        fontWeight: "600",
-        color: "#4B5563",
-    },
-    selectedBloodTypeText: {
-        color: "#D11B31",
+    chipText: {
+        fontSize: moderateScale(13),
         fontWeight: "700",
+        color: "#666666",
+    },
+    chipTextSelected: {
+        color: "#FFFFFF",
     },
     emergencyActions: {
         flexDirection: "row",
@@ -157,8 +167,8 @@ const styles = StyleSheet.create({
         height: verticalScale(50),
         justifyContent: "center",
         alignItems: "center",
-        borderRadius: moderateScale(14),
-        backgroundColor: "#F3F4F6",
+        borderRadius: moderateScale(20),
+        backgroundColor: "#FEE2E2",
     },
     confirmEmergencyBtn: {
         flex: 2,
@@ -166,13 +176,13 @@ const styles = StyleSheet.create({
         height: verticalScale(50),
         justifyContent: "center",
         alignItems: "center",
-        borderRadius: moderateScale(14),
+        borderRadius: moderateScale(20),
         backgroundColor: "#D11B31",
     },
     cancelBtnText: {
         fontSize: moderateScale(15),
-        fontWeight: "600",
-        color: "#4B5563",
+        fontWeight: "700",
+        color: "#666666",
     },
     confirmBtnText: {
         fontSize: moderateScale(15),

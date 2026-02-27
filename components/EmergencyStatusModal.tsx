@@ -13,6 +13,7 @@ interface EmergencyStatusModalProps {
     onStop?: () => void
     onAccept?: (requestId: number) => void
     onCancel?: (requestId: number) => void
+    onTrackLocation?: () => void
 }
 
 export default function EmergencyStatusModal({
@@ -24,6 +25,7 @@ export default function EmergencyStatusModal({
     onStop,
     onAccept,
     onCancel,
+    onTrackLocation,
 }: EmergencyStatusModalProps) {
     const isGainer = role === 'gainer'
     const hasActive = isGainer ? !!activeEmergency : !!incomingEmergency
@@ -36,17 +38,12 @@ export default function EmergencyStatusModal({
                 <View style={styles.modalContent}>
                     <View style={styles.modalHandle} />
 
-                    <View style={styles.header}>
-                        <View style={styles.titleRow}>
-                            <Ionicons name="flash" size={24} color="#D11B31" style={{ marginRight: 8 }} />
-                            <Text style={styles.modalTitle}>Emergency Status</Text>
-                        </View>
-                        <Text style={styles.modalSubtitle}>
-                            {isGainer
-                                ? "Real-time status of your emergency blood request."
-                                : "Details of the incoming emergency request."}
-                        </Text>
-                    </View>
+                    <Text style={styles.modalTitle}>Emergency Status</Text>
+                    <Text style={styles.modalSubtitle}>
+                        {isGainer
+                            ? "Real-time status of your emergency blood request."
+                            : "Details of the incoming emergency request."}
+                    </Text>
 
                     <ScrollView
                         style={styles.scrollArea}
@@ -65,18 +62,28 @@ export default function EmergencyStatusModal({
                                             <Text style={styles.requesterName} numberOfLines={1}>
                                                 {isGainer ? "Your Request" : (displayData?.gainerName || "Emergency Gainer")}
                                             </Text>
-                                            <View style={[
-                                                styles.statusBadge,
-                                                { backgroundColor: (displayData?.status === 'Accepted' || displayData?.Status === 'Accepted') ? '#ECFDF5' : '#FEF2F2' }
-                                            ]}>
-                                                <Text style={[
-                                                    styles.statusBadgeText,
-                                                    { color: (displayData?.status === 'Accepted' || displayData?.Status === 'Accepted') ? '#059669' : '#D11B31' }
+                                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                {(displayData?.status === 'Accepted' || displayData?.Status === 'Accepted') && (
+                                                    <TouchableOpacity
+                                                        onPress={onTrackLocation}
+                                                        style={styles.mapIconButton}
+                                                    >
+                                                        <Ionicons name="map" size={18} color="#D11B31" />
+                                                    </TouchableOpacity>
+                                                )}
+                                                <View style={[
+                                                    styles.statusBadge,
+                                                    { backgroundColor: (displayData?.status === 'Accepted' || displayData?.Status === 'Accepted') ? '#ECFDF5' : '#FEF2F2' }
                                                 ]}>
-                                                    {isGainer
-                                                        ? ((displayData?.status === 'Accepted' || displayData?.Status === 'Accepted') ? 'ACCEPTED' : 'BROADCASTING')
-                                                        : ((displayData?.status === 'Accepted' || displayData?.Status === 'Accepted') ? 'ACCEPTED' : 'URGENT')}
-                                                </Text>
+                                                    <Text style={[
+                                                        styles.statusBadgeText,
+                                                        { color: (displayData?.status === 'Accepted' || displayData?.Status === 'Accepted') ? '#059669' : '#D11B31' }
+                                                    ]}>
+                                                        {isGainer
+                                                            ? ((displayData?.status === 'Accepted' || displayData?.Status === 'Accepted') ? 'ACCEPTED' : 'BROADCASTING')
+                                                            : ((displayData?.status === 'Accepted' || displayData?.Status === 'Accepted') ? 'ACCEPTED' : 'URGENT')}
+                                                    </Text>
+                                                </View>
                                             </View>
                                         </View>
 
@@ -180,7 +187,7 @@ export default function EmergencyStatusModal({
 const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
-        backgroundColor: "rgba(0,0,0,0.4)",
+        backgroundColor: "rgba(0,0,0,0.18)",
         justifyContent: "flex-end",
     },
     backdrop: {
@@ -188,25 +195,25 @@ const styles = StyleSheet.create({
     },
     modalContent: {
         backgroundColor: "#fff",
-        borderTopLeftRadius: moderateScale(32),
-        borderTopRightRadius: moderateScale(32),
-        paddingHorizontal: scale(20),
-        paddingTop: verticalScale(12),
-        paddingBottom: verticalScale(30),
-        maxHeight: '70%',
+        borderTopLeftRadius: moderateScale(26),
+        borderTopRightRadius: moderateScale(26),
+        paddingHorizontal: scale(16),
+        paddingTop: verticalScale(10),
+        paddingBottom: verticalScale(22),
+        maxHeight: '75%',
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: -moderateScale(4) },
-        shadowOpacity: 0.1,
-        shadowRadius: moderateScale(12),
-        elevation: 20,
+        shadowOffset: { width: 0, height: moderateScale(6) },
+        shadowOpacity: 0.18,
+        shadowRadius: moderateScale(16),
+        elevation: 12,
     },
     modalHandle: {
-        width: scale(40),
-        height: verticalScale(5),
-        backgroundColor: "#E5E7EB",
-        borderRadius: 10,
         alignSelf: "center",
-        marginBottom: verticalScale(20),
+        width: scale(44),
+        height: verticalScale(5),
+        borderRadius: moderateScale(99),
+        backgroundColor: "#E5E7EB",
+        marginBottom: verticalScale(10),
     },
     header: {
         marginBottom: verticalScale(20),
@@ -217,14 +224,18 @@ const styles = StyleSheet.create({
         marginBottom: verticalScale(4),
     },
     modalTitle: {
-        fontSize: moderateScale(22),
+        fontSize: moderateScale(20),
         fontWeight: "800",
-        color: "#111827",
+        color: "#D11B31",
+        textAlign: "center",
+        marginBottom: verticalScale(4),
     },
     modalSubtitle: {
         fontSize: moderateScale(14),
         color: "#6B7280",
         lineHeight: moderateScale(20),
+        textAlign: "center",
+        marginBottom: verticalScale(14),
     },
     scrollArea: {
         width: "100%",
@@ -235,15 +246,10 @@ const styles = StyleSheet.create({
     statusCard: {
         backgroundColor: "#FFFFFF",
         borderRadius: moderateScale(20),
-        padding: scale(20),
+        padding: scale(16),
         marginBottom: verticalScale(12),
         borderWidth: 1,
         borderColor: "#F3F4F6",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 3,
     },
     cardHeader: {
         flexDirection: "row",
@@ -285,6 +291,17 @@ const styles = StyleSheet.create({
         paddingVertical: verticalScale(2),
         borderRadius: moderateScale(6),
     },
+    mapIconButton: {
+        width: moderateScale(32),
+        height: moderateScale(32),
+        borderRadius: moderateScale(16),
+        backgroundColor: '#FEF2F2',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: scale(8),
+        borderWidth: 1,
+        borderColor: '#FEE2E2',
+    },
     statusBadgeText: {
         fontSize: moderateScale(10),
         fontWeight: "800",
@@ -310,11 +327,9 @@ const styles = StyleSheet.create({
     helperCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F9FAFB',
+        backgroundColor: '#FEE2E2',
         borderRadius: moderateScale(16),
         padding: scale(12),
-        borderWidth: 1,
-        borderColor: '#F3F4F6',
     },
     helperDetails: {
         marginLeft: scale(12),
@@ -352,13 +367,13 @@ const styles = StyleSheet.create({
     actionRow: {
         flexDirection: 'row',
         gap: scale(12),
-        marginTop: verticalScale(10),
+        marginTop: verticalScale(4),
     },
     stopButton: {
         flex: 1,
         flexDirection: 'row',
         backgroundColor: "#111827",
-        borderRadius: moderateScale(20),
+        borderRadius: moderateScale(26),
         paddingVertical: verticalScale(16),
         alignItems: "center",
         justifyContent: 'center',
@@ -387,7 +402,7 @@ const styles = StyleSheet.create({
     },
     dismissButton: {
         flex: 1,
-        backgroundColor: "#F3F4F6",
+        backgroundColor: "#FEE2E2",
         borderRadius: moderateScale(22),
         paddingVertical: verticalScale(16),
         alignItems: "center",
@@ -423,7 +438,7 @@ const styles = StyleSheet.create({
         fontSize: moderateScale(16),
     },
     dismissText: {
-        color: "#6B7280",
+        color: "#666666",
         fontWeight: "700",
         fontSize: moderateScale(16),
     }
