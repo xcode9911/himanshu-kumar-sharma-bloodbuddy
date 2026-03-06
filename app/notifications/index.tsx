@@ -5,103 +5,56 @@ import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
+    SafeAreaView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View
 } from "react-native";
-import { API_ENDPOINTS } from "../../config/api";
+import ThankYouModal from "../../components/ThankYouModal";
 import { connectSocket, getSocket } from "../../config/socket";
-import { Fonts } from "../../constants/theme";
+import { useNotifications } from "../../context/NotificationContext";
 import { moderateScale, scale, verticalScale } from "../../utils/responsive";
 
-export default function NotificationsScreen() {
-    const [notifications, setNotifications] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [userRole, setUserRole] = useState<string>("");
+const NotificationsScreen = () => {
+    const { notifications, markAsRead, deleteNotification, fetchNotifications, unreadCount } = useNotifications();
+    const [thankYouVisible, setThankYouVisible] = useState(false);
+    const [thankYouMsg, setThankYouMsg] = useState("");
+    const [loading, setLoading] = useState(false); // Context handles initial load, but we can track refreshing
     const router = useRouter();
 
     useEffect(() => {
-        fetchNotifications();
         setupSocket();
     }, []);
 
-    const fetchNotifications = async () => {
-        try {
-            const token = await AsyncStorage.getItem("authToken");
-            if (!token) return;
-
-            const response = await fetch(API_ENDPOINTS.GET_NOTIFICATIONS, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
-            const data = await response.json();
-            if (response.ok) {
-                setNotifications(data.notifications || []);
-            }
-        } catch (error) {
-            console.error("Error fetching notifications:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const setupSocket = async () => {
-        const userData = await AsyncStorage.getItem("userData");
-        if (!userData) return;
-        const user = JSON.parse(userData);
-
-        connectSocket(user.id);
-        const socket = getSocket();
-
-        // Premium Real-time Experience: Listen for any new notification
-        socket.on("newNotification", (notification: any) => {
-            setNotifications((prev) => [notification, ...prev]);
-        });
-
-        // Specific legacy events or new real-time triggers to refresh list
-        socket.on("newBookingRequest", () => fetchNotifications());
-        socket.on("bookingApproved", () => fetchNotifications());
-        socket.on("bookingRejected", () => fetchNotifications());
-        socket.on("donationStatusUpdated", () => fetchNotifications());
-        socket.on("newDonationOffer", () => fetchNotifications());
-    };
-
-    const markAsRead = async (id: number) => {
         try {
-            const token = await AsyncStorage.getItem("authToken");
-            if (!token) return;
+            const userData = await AsyncStorage.getItem("userData");
+            if (!userData) return;
+            const user = JSON.parse(userData);
 
-            const response = await fetch(API_ENDPOINTS.MARK_NOTIFICATION_READ(id), {
-                method: "PATCH",
-                headers: { Authorization: `Bearer ${token}` },
+            connectSocket(user.id);
+            const socket = getSocket();
+
+            socket.on("newNotification", () => {
+                fetchNotifications();
             });
 
-            if (response.ok) {
-                setNotifications((prev) =>
-                    prev.map((n) => (n.NotificationId === id ? { ...n, IsRead: true } : n))
-                );
-            }
+            socket.on("newBookingRequest", () => fetchNotifications());
+            socket.on("bookingApproved", () => fetchNotifications());
+            socket.on("bookingRejected", () => fetchNotifications());
+            socket.on("donationStatusUpdated", () => fetchNotifications());
+            socket.on("newDonationOffer", () => fetchNotifications());
         } catch (error) {
-            console.error("Error marking as read:", error);
+            console.error("Error setting up socket:", error);
         }
     };
 
-    const deleteNotification = async (id: number) => {
-        try {
-            const token = await AsyncStorage.getItem("authToken");
-            if (!token) return;
-
-            const response = await fetch(API_ENDPOINTS.DELETE_NOTIFICATION(id), {
-                method: "DELETE",
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
-            if (response.ok) {
-                setNotifications((prev) => prev.filter((n) => n.NotificationId !== id));
-            }
-        } catch (error) {
-            console.error("Error deleting notification:", error);
+    const handleNotificationPress = (notif: any) => {
+        markAsRead(notif.NotificationId);
+        if (notif.Type === "donation_thankyou") {
+            setThankYouMsg(notif.Message);
+            setThankYouVisible(true);
         }
     };
 
@@ -110,7 +63,7 @@ export default function NotificationsScreen() {
             case 'donation_request': return 'heart-circle-outline';
             case 'donation_status': return 'calendar-check-outline';
             case 'booking_request': return 'water-outline';
-            case 'booking_status': return 'notifications-outline';
+            case 'donation_thankyou': return 'star-outline';
             default: return 'notifications-outline';
         }
     };
@@ -120,6 +73,7 @@ export default function NotificationsScreen() {
             case 'donation_request': return '#D11B31';
             case 'donation_status': return '#059669';
             case 'booking_request': return '#3B82F6';
+            case 'donation_thankyou': return '#F59E0B';
             default: return '#6B7280';
         }
     };
@@ -130,7 +84,7 @@ export default function NotificationsScreen() {
         return (
             <TouchableOpacity
                 style={[styles.card, !item.IsRead && styles.unreadCard]}
-                onPress={() => markAsRead(item.NotificationId)}
+                onPress={() => handleNotificationPress(item)}
                 activeOpacity={0.7}
             >
                 <View style={styles.cardHeader}>
@@ -154,7 +108,7 @@ export default function NotificationsScreen() {
     };
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#D11B31" />
@@ -180,11 +134,20 @@ export default function NotificationsScreen() {
                     }
                 />
             )}
-        </View>
+
+            <ThankYouModal
+                visible={thankYouVisible}
+                onClose={() => setThankYouVisible(false)}
+                message={thankYouMsg}
+            />
+        </SafeAreaView>
     );
-}
+};
+
+export default NotificationsScreen;
 
 const styles = StyleSheet.create({
+    // ... rest remains same or updated for SafeAreaView
     container: {
         flex: 1,
         backgroundColor: "#F9FAFB",
@@ -194,9 +157,10 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "space-between",
         paddingHorizontal: scale(16),
-        paddingTop: verticalScale(60),
-        paddingBottom: verticalScale(20),
+        paddingVertical: verticalScale(10),
         backgroundColor: "#fff",
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6'
     },
     backButton: {
         padding: 8,
@@ -205,7 +169,6 @@ const styles = StyleSheet.create({
         fontSize: moderateScale(20),
         fontWeight: "800",
         color: "#1F2937",
-        fontFamily: Fonts.rounded || Fonts.sans,
     },
     list: {
         padding: scale(16),
@@ -219,16 +182,15 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 8,
-        elevation: 3,
+        elevation: 2,
     },
     cardHeader: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: verticalScale(12),
     },
     unreadCard: {
-        backgroundColor: "#F0F9FF",
-        borderColor: "#BAE6FD",
+        backgroundColor: "#FFF5F5",
+        borderColor: "#FED7D7",
         borderWidth: 1,
     },
     typeIcon: {
@@ -256,21 +218,20 @@ const styles = StyleSheet.create({
         width: moderateScale(8),
         height: moderateScale(8),
         borderRadius: moderateScale(4),
-        backgroundColor: "#3B82F6",
+        backgroundColor: "#D11B31",
     },
     notifMessage: {
         fontSize: moderateScale(14),
         color: "#4B5563",
         marginTop: 4,
-        lineHeight: moderateScale(20),
     },
     timeText: {
         fontSize: moderateScale(12),
-        color: "#6B7280",
+        color: "#9CA3AF",
         marginTop: 4,
     },
     deleteButton: {
-        padding: 4,
+        padding: 8,
     },
     emptyState: {
         alignItems: "center",

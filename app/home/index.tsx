@@ -29,7 +29,8 @@ import Navigation from "../../components/Navigation";
 import QuickDonationModal from "../../components/QuickDonationModal";
 import ReceivedPaymentsModal from "../../components/ReceivedPaymentsModal";
 import { API_ENDPOINTS } from "../../config/api";
-import { connectSocket, getSocket } from "../../config/socket";
+import { connectSocket } from "../../config/socket";
+import { useNotifications } from "../../context/NotificationContext";
 import { moderateScale, scale, verticalScale } from "../../utils/responsive";
 
 type UserType = "gainer" | "donor" | "organization";
@@ -53,10 +54,10 @@ interface QuickAction {
 
 export default function Home() {
   const router = useRouter();
+  const { unreadCount, setUnreadCount } = useNotifications();
   const [userType, setUserType] = useState<UserType>("donor");
   const [userName, setUserName] = useState<string>("User");
   const [userId, setUserId] = useState<string | null>(null);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   // Modal States
   const [addInventoryModalVisible, setAddInventoryModalVisible] = useState(false);
@@ -188,39 +189,7 @@ export default function Home() {
   };
 
   const setupNotifications = (role: string) => {
-    const socket = getSocket();
-    if (!socket) return;
-
-    socket.off("newBookingRequest");
-    if (role === "organization") {
-      socket.on("newBookingRequest", (data: any) => {
-        setUnreadNotifications((prev) => prev + 1);
-        Alert.alert(
-          "New Booking Request",
-          `${data.gainerName} requested ${data.units} units of ${data.bloodType}.`,
-          [
-            { text: "Later", style: "cancel" },
-            { text: "View", onPress: () => router.push("/notifications") }
-          ]
-        );
-      });
-    }
-
-    socket.off("bookingApproved");
-    socket.off("bookingRejected");
-    if (role === "gainer") {
-      socket.on("bookingApproved", (data: any) => {
-        setUnreadNotifications((prev) => prev + 1);
-        Alert.alert("Booking Approved!", `Your request for ${data.bloodType} has been approved.`);
-        fetchBookings();
-      });
-
-      socket.on("bookingRejected", (data: any) => {
-        setUnreadNotifications((prev) => prev + 1);
-        Alert.alert("Booking Rejected", `Your request for ${data.bloodType} was rejected.`);
-        fetchBookings();
-      });
-    }
+    // Handled by NotificationProvider
   };
 
   const fetchBookings = async () => {
@@ -291,7 +260,7 @@ export default function Home() {
 
       if (role === 'organization' && bookingResponse.ok && bookingData.requests) {
         const pendingCount = bookingData.requests.filter((r: any) => r.Status === "Pending").length;
-        setUnreadNotifications(pendingCount);
+        setUnreadCount(pendingCount);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -455,15 +424,14 @@ export default function Home() {
                 <TouchableOpacity
                   style={styles.notificationIconButton}
                   onPress={() => {
-                    setUnreadNotifications(0);
                     router.push("/notifications");
                   }}
                 >
                   <View style={styles.iconContainer}>
                     <Ionicons name="notifications-outline" size={moderateScale(24)} color="#FFFFFF" />
-                    {unreadNotifications > 0 && (
+                    {unreadCount > 0 && (
                       <View style={styles.badgeContainer}>
-                        <Text style={styles.badgeText}>{unreadNotifications}</Text>
+                        <Text style={styles.badgeText}>{unreadCount}</Text>
                       </View>
                     )}
                   </View>
