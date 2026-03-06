@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import prisma from '../models/index.js';
+import { createNotification } from './notificationController.js';
 
 /**
  * Send a message and save to database
@@ -8,6 +9,7 @@ export const sendMessage = async (req: Request, res: Response) => {
     try {
         const { receiverId, message } = req.body;
         const senderId = (req as any).user.userId;
+        const senderName = (req as any).user.fullName || "Someone";
 
         if (!receiverId || !message) {
             return res.status(400).json({ message: 'ReceiverId and message are required' });
@@ -22,8 +24,32 @@ export const sendMessage = async (req: Request, res: Response) => {
             }
         });
 
-        // We rely on socket.io to emit the message in real-time, 
-        // but the API call ensures it's persisted and provides immediate feedback.
+        // Notify receiver
+        const io = req.app.get('socketio');
+        if (io) {
+            const normalizedReceiverId = receiverId.toLowerCase();
+            const normalizedSenderId = senderId.toLowerCase();
+
+            // Emit the legacy newMessage event for backward compatibility if needed, 
+            // though createNotification will now handle 'newNotification'
+            io.to(normalizedReceiverId).emit("newMessage", {
+                senderId: normalizedSenderId,
+                senderName,
+                message,
+                timestamp: new Date().toISOString()
+            });
+
+            // Persist notification
+            await createNotification(
+                receiverId,
+                `New Message from ${senderName}`,
+                message.length > 50 ? message.substring(0, 47) + "..." : message,
+                "chat",
+                newMessage.ChatId,
+                io
+            );
+        }
+
         return res.status(201).json({
             message: 'Message sent successfully',
             data: newMessage

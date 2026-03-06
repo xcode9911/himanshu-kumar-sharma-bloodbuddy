@@ -75,18 +75,15 @@ export const createDonationOffer = async (req: Request, res: Response) => {
                     timestamp: offer.CreatedAt,
                 });
 
-                // Save persistent notification
-                const notification = await createNotification(
+                // Save persistent notification and emit via io
+                await createNotification(
                     orgUserId,
                     "New Donation Offer",
                     `${user.FullName} offered to donate ${user.donor.BloodType} blood.`,
                     "donation_request",
-                    offer.OfferId
+                    offer.OfferId,
+                    io
                 );
-
-                if (notification) {
-                    io.to(orgUserId).emit('newNotification', notification);
-                }
             }
         }
 
@@ -181,19 +178,16 @@ export const updateDonationStatus = async (req: Request, res: Response) => {
                 donationDate: result.DonationDate
             });
 
-            // Save persistent notification
+            // Save persistent notification & emit
             const orgName = user.organization.OrganizationName;
-            const notification = await createNotification(
+            await createNotification(
                 donorUserId,
                 `Donation ${status.charAt(0).toUpperCase() + status.slice(1)}`,
                 `${orgName} has ${status} your donation offer.${status === 'accepted' ? ' Check your schedule for details.' : ''}`,
                 "donation_status",
-                result.OfferId
+                result.OfferId,
+                io
             );
-
-            if (notification) {
-                io.to(donorUserId).emit('newNotification', notification);
-            }
         }
 
         return res.status(200).json({

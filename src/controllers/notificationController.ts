@@ -47,7 +47,7 @@ export const markAsRead = async (req: Request, res: Response) => {
     try {
         await prisma.notification.update({
             where: {
-                NotificationId: parseInt(notificationId),
+                NotificationId: parseInt(notificationId || "0"),
                 UserId: authUserId // Ensure user owns the notification
             },
             data: { IsRead: true }
@@ -83,7 +83,7 @@ export const deleteNotification = async (req: Request, res: Response) => {
     try {
         await prisma.notification.delete({
             where: {
-                NotificationId: parseInt(notificationId),
+                NotificationId: parseInt(notificationId || "0"),
                 UserId: authUserId
             }
         });
@@ -95,7 +95,7 @@ export const deleteNotification = async (req: Request, res: Response) => {
 };
 
 // Helper function to create notifications (internal use)
-export const createNotification = async (userId: string, title: string, message: string, type: string, relatedId?: number) => {
+export const createNotification = async (userId: string, title: string, message: string, type: string, relatedId?: number, io?: any) => {
     try {
         const notification = await prisma.notification.create({
             data: {
@@ -103,9 +103,14 @@ export const createNotification = async (userId: string, title: string, message:
                 Title: title,
                 Message: message,
                 Type: type,
-                RelatedId: relatedId
+                RelatedId: relatedId ?? null
             }
         });
+
+        if (io && notification) {
+            io.to(userId.toLowerCase()).emit('newNotification', notification);
+        }
+
         return notification;
     } catch (error) {
         console.error('Error creating notification:', error);
