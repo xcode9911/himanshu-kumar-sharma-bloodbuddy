@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../models/index.js';
+import { createNotification } from './notificationController.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'bloodbuddysecret';
 
@@ -114,7 +115,7 @@ export const createBloodRequest = async (req: Request, res: Response) => {
             return { updatedInventory, bloodRequest };
         });
 
-        // 4. Emit Socket.io Event
+        // 4. Emit Socket.io Event & Create Notification
         const io = req.app.get('socketio');
         if (io) {
             io.emit('inventoryUpdated', {
@@ -122,6 +123,23 @@ export const createBloodRequest = async (req: Request, res: Response) => {
                 bloodType: bloodType,
                 newUnits: result.updatedInventory.Units,
             });
+
+            // Find organization user to notify
+            const org = await prisma.organization.findUnique({
+                where: { OrganizationId: organizationId },
+                select: { UserId: true, OrganizationName: true }
+            });
+
+            if (org) {
+                await createNotification(
+                    org.UserId,
+                    "New Blood Booking",
+                    `${user.FullName} booked ${units} units of ${bloodType}.`,
+                    "booking_request",
+                    result.bloodRequest.RequestId,
+                    io
+                );
+            }
         }
 
         return res.status(201).json({

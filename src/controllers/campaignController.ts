@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import multer from "multer";
 import prisma from "../models/index.js";
 import catchAsync from "../utils/catchAsync.js";
+import { createNotification } from "./notificationController.js";
 
 // Multer Storage Configuration
 const storage = multer.memoryStorage();
@@ -245,6 +246,23 @@ export const recordAttendance = catchAsync(async (req: Request, res: Response) =
                 Units: Number(units) || 1
             }
         });
+    }
+
+    const donor = await prisma.user.findUnique({
+        where: { UserId: userId || authUserId },
+        select: { FullName: true }
+    });
+
+    const io = req.app.get('socketio');
+    if (io) {
+        await createNotification(
+            userId || authUserId,
+            "Thank You for Your Contribution!",
+            `Your donation at ${campaign.Title} is highly appreciated. You've helped save lives!`,
+            "donation_thankyou",
+            attendance.AttendanceId,
+            io
+        );
     }
 
     res.status(201).json({
