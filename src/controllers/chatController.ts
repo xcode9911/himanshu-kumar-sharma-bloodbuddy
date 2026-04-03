@@ -138,7 +138,8 @@ export const getChatPartners = async (req: Request, res: Response) => {
                     select: {
                         OrganizationName: true
                     }
-                }
+                },
+                ProfileImage: true
             }
         });
 
@@ -175,7 +176,12 @@ export const getChatPartners = async (req: Request, res: Response) => {
                 lastMessage: lastMsg?.Message || null,
                 lastMessageTime: lastMsg?.Timestamp || null,
                 unreadCount: unread,
-                isOnline: isOnline
+                isOnline: isOnline,
+                profileImage: u.ProfileImage
+                  ? u.ProfileImage.startsWith("http")
+                    ? u.ProfileImage
+                    : `${process.env.API_URL || "http://192.168.1.65:8000"}/${u.ProfileImage}`
+                  : null
             };
         };
 
@@ -193,7 +199,8 @@ export const getChatPartners = async (req: Request, res: Response) => {
                         select: {
                             OrganizationName: true
                         }
-                    }
+                    },
+                    ProfileImage: true
                 }
             });
             // Gainers who messaged me
@@ -221,7 +228,8 @@ export const getChatPartners = async (req: Request, res: Response) => {
                         select: {
                             OrganizationName: true
                         }
-                    }
+                    },
+                    ProfileImage: true
                 }
             });
             // Gainers who messaged me

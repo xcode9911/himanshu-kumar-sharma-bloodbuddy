@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../models/index.js';
+import { logInventoryChange } from '../utils/inventoryLogger.js';
 import { createNotification } from './notificationController.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'bloodbuddysecret';
@@ -163,6 +164,16 @@ export const approveBooking = async (req: Request, res: Response) => {
                 where: { InventoryId: inventory.InventoryId },
                 data: { Units: { decrement: request.Units } }
             });
+
+            await logInventoryChange(
+                organizationId,
+                request.BloodType,
+                -request.Units,
+                'Booking',
+                inventory.Units,
+                inventory.Units - request.Units,
+                request.RequestId
+            );
 
             const updatedRequest = await tx.bloodRequest.update({
                 where: { RequestId: parseInt(requestId as string) },

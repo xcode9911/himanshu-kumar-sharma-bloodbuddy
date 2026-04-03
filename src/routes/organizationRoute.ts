@@ -6,6 +6,7 @@ import {
   updateInventoryUnits,
   checkBloodTypeExists,
   getAllOrganizations,
+  getInventoryHistory,
 } from '../controllers/organizationController.js';
 import catchAsync from '../utils/catchAsync.js';
 
@@ -20,5 +21,6 @@ router.get('/get-inventory', catchAsync(getInventory));
 router.get('/check-blood-type/:bloodType', catchAsync(checkBloodTypeExists));
 router.delete('/delete-inventory/:bloodType', catchAsync(deleteInventory));
 router.patch('/update-inventory-units', catchAsync(updateInventoryUnits));
+router.get('/get-inventory-history', catchAsync(getInventoryHistory));
 
 export default router;

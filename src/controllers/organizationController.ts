@@ -1,30 +1,33 @@
-import type { Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
-import prisma from '../models/index.js';
+import type { Request, Response } from "express";
+import jwt from "jsonwebtoken";
+import prisma from "../models/index.js";
+import { logInventoryChange } from "../utils/inventoryLogger.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || 'bloodbuddysecret';
+const JWT_SECRET = process.env.JWT_SECRET || "bloodbuddysecret";
 
 // Extract userId from bearer token
-const getUserIdFromAuthHeader = (req: Request): { userId: string | null; error?: 'missing' | 'invalid' } => {
+const getUserIdFromAuthHeader = (
+  req: Request,
+): { userId: string | null; error?: "missing" | "invalid" } => {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.toLowerCase().startsWith('bearer ')) {
-    return { userId: null, error: 'missing' };
+  if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
+    return { userId: null, error: "missing" };
   }
 
-  const [, token] = authHeader.split(' ');
+  const [, token] = authHeader.split(" ");
   if (!token) {
-    return { userId: null, error: 'invalid' };
+    return { userId: null, error: "invalid" };
   }
   try {
     const decoded: any = jwt.verify(token, JWT_SECRET);
     return { userId: decoded?.user?.userId ?? null };
   } catch (err) {
-    return { userId: null, error: 'invalid' };
+    return { userId: null, error: "invalid" };
   }
 };
 
 // Valid blood types
-const VALID_BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+const VALID_BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 // Add or update blood inventory
 export const addOrUpdateInventory = async (req: Request, res: Response) => {
@@ -32,31 +35,39 @@ export const addOrUpdateInventory = async (req: Request, res: Response) => {
   const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
 
   // Check authentication
-  if (authError === 'missing') {
-    return res.status(401).json({ message: 'Authorization bearer token is required' });
+  if (authError === "missing") {
+    return res
+      .status(401)
+      .json({ message: "Authorization bearer token is required" });
   }
 
-  if (authError === 'invalid') {
-    return res.status(401).json({ message: 'Invalid or expired authorization token' });
+  if (authError === "invalid") {
+    return res
+      .status(401)
+      .json({ message: "Invalid or expired authorization token" });
   }
 
   if (!authUserId) {
-    return res.status(401).json({ message: 'User ID not found in token' });
+    return res.status(401).json({ message: "User ID not found in token" });
   }
 
   // Validate input
-  if (!bloodType || typeof bloodType !== 'string') {
-    return res.status(400).json({ message: 'Blood type is required and must be a string' });
+  if (!bloodType || typeof bloodType !== "string") {
+    return res
+      .status(400)
+      .json({ message: "Blood type is required and must be a string" });
   }
 
   if (!VALID_BLOOD_TYPES.includes(bloodType)) {
     return res.status(400).json({
-      message: `Invalid blood type. Must be one of: ${VALID_BLOOD_TYPES.join(', ')}`
+      message: `Invalid blood type. Must be one of: ${VALID_BLOOD_TYPES.join(", ")}`,
     });
   }
 
-  if (typeof units !== 'number' || units < 0) {
-    return res.status(400).json({ message: 'Units must be a non-negative number' });
+  if (typeof units !== "number" || units < 0) {
+    return res
+      .status(400)
+      .json({ message: "Units must be a non-negative number" });
   }
 
   // Fetch user and organization information
@@ -66,11 +77,13 @@ export const addOrUpdateInventory = async (req: Request, res: Response) => {
   });
 
   if (!user) {
-    return res.status(404).json({ message: 'User not found' });
+    return res.status(404).json({ message: "User not found" });
   }
 
-  if (user.Role.toLowerCase() !== 'organization' || !user.organization) {
-    return res.status(400).json({ message: 'Only organizations can manage inventory' });
+  if (user.Role.toLowerCase() !== "organization" || !user.organization) {
+    return res
+      .status(400)
+      .json({ message: "Only organizations can manage inventory" });
   }
 
   const organizationId = user.organization.OrganizationId;
@@ -92,6 +105,15 @@ export const addOrUpdateInventory = async (req: Request, res: Response) => {
       where: { InventoryId: existingInventory.InventoryId },
       data: { Units: newUnits },
     });
+
+    await logInventoryChange(
+      organizationId,
+      bloodType,
+      units,
+      "Add",
+      existingInventory.Units,
+      newUnits,
+    );
   } else {
     // Create new inventory entry
     inventory = await prisma.inventory.create({
@@ -101,12 +123,14 @@ export const addOrUpdateInventory = async (req: Request, res: Response) => {
         Units: units,
       },
     });
+
+    await logInventoryChange(organizationId, bloodType, units, "Add", 0, units);
   }
 
   return res.status(200).json({
     message: existingInventory
       ? `Inventory updated successfully. Added ${units} units. Total: ${inventory.Units}`
-      : 'Inventory added successfully',
+      : "Inventory added successfully",
     isUpdate: !!existingInventory,
     inventory: {
       inventoryId: inventory.InventoryId,
@@ -124,20 +148,26 @@ export const checkBloodTypeExists = async (req: Request, res: Response) => {
   const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
 
   // Check authentication
-  if (authError === 'missing') {
-    return res.status(401).json({ message: 'Authorization bearer token is required' });
+  if (authError === "missing") {
+    return res
+      .status(401)
+      .json({ message: "Authorization bearer token is required" });
   }
 
-  if (authError === 'invalid') {
-    return res.status(401).json({ message: 'Invalid or expired authorization token' });
+  if (authError === "invalid") {
+    return res
+      .status(401)
+      .json({ message: "Invalid or expired authorization token" });
   }
 
   if (!authUserId) {
-    return res.status(401).json({ message: 'User ID not found in token' });
+    return res.status(401).json({ message: "User ID not found in token" });
   }
 
   if (!bloodType) {
-    return res.status(400).json({ message: 'Blood type parameter is required' });
+    return res
+      .status(400)
+      .json({ message: "Blood type parameter is required" });
   }
 
   // Fetch user and organization information
@@ -147,11 +177,13 @@ export const checkBloodTypeExists = async (req: Request, res: Response) => {
   });
 
   if (!user) {
-    return res.status(404).json({ message: 'User not found' });
+    return res.status(404).json({ message: "User not found" });
   }
 
-  if (user.Role.toLowerCase() !== 'organization' || !user.organization) {
-    return res.status(400).json({ message: 'Only organizations can check inventory' });
+  if (user.Role.toLowerCase() !== "organization" || !user.organization) {
+    return res
+      .status(400)
+      .json({ message: "Only organizations can check inventory" });
   }
 
   const organizationId = user.organization.OrganizationId;
@@ -176,16 +208,20 @@ export const getInventory = async (req: Request, res: Response) => {
   const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
 
   // Check authentication
-  if (authError === 'missing') {
-    return res.status(401).json({ message: 'Authorization bearer token is required' });
+  if (authError === "missing") {
+    return res
+      .status(401)
+      .json({ message: "Authorization bearer token is required" });
   }
 
-  if (authError === 'invalid') {
-    return res.status(401).json({ message: 'Invalid or expired authorization token' });
+  if (authError === "invalid") {
+    return res
+      .status(401)
+      .json({ message: "Invalid or expired authorization token" });
   }
 
   if (!authUserId) {
-    return res.status(401).json({ message: 'User ID not found in token' });
+    return res.status(401).json({ message: "User ID not found in token" });
   }
 
   // Fetch user and organization information
@@ -195,11 +231,13 @@ export const getInventory = async (req: Request, res: Response) => {
   });
 
   if (!user) {
-    return res.status(404).json({ message: 'User not found' });
+    return res.status(404).json({ message: "User not found" });
   }
 
-  if (user.Role.toLowerCase() !== 'organization' || !user.organization) {
-    return res.status(400).json({ message: 'Only organizations can view inventory' });
+  if (user.Role.toLowerCase() !== "organization" || !user.organization) {
+    return res
+      .status(400)
+      .json({ message: "Only organizations can view inventory" });
   }
 
   const organizationId = user.organization.OrganizationId;
@@ -207,13 +245,13 @@ export const getInventory = async (req: Request, res: Response) => {
   // Fetch all inventory for this organization
   const inventory = await prisma.inventory.findMany({
     where: { OrganizationId: organizationId },
-    orderBy: { BloodType: 'asc' },
+    orderBy: { BloodType: "asc" },
   });
 
   return res.status(200).json({
     organizationId,
     organizationName: user.organization.OrganizationName,
-    inventory: inventory.map(item => ({
+    inventory: inventory.map((item) => ({
       inventoryId: item.InventoryId,
       bloodType: item.BloodType,
       units: item.Units,
@@ -228,20 +266,26 @@ export const deleteInventory = async (req: Request, res: Response) => {
   const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
 
   // Check authentication
-  if (authError === 'missing') {
-    return res.status(401).json({ message: 'Authorization bearer token is required' });
+  if (authError === "missing") {
+    return res
+      .status(401)
+      .json({ message: "Authorization bearer token is required" });
   }
 
-  if (authError === 'invalid') {
-    return res.status(401).json({ message: 'Invalid or expired authorization token' });
+  if (authError === "invalid") {
+    return res
+      .status(401)
+      .json({ message: "Invalid or expired authorization token" });
   }
 
   if (!authUserId) {
-    return res.status(401).json({ message: 'User ID not found in token' });
+    return res.status(401).json({ message: "User ID not found in token" });
   }
 
   if (!bloodType) {
-    return res.status(400).json({ message: 'Blood type parameter is required' });
+    return res
+      .status(400)
+      .json({ message: "Blood type parameter is required" });
   }
 
   // Fetch user and organization information
@@ -251,11 +295,13 @@ export const deleteInventory = async (req: Request, res: Response) => {
   });
 
   if (!user) {
-    return res.status(404).json({ message: 'User not found' });
+    return res.status(404).json({ message: "User not found" });
   }
 
-  if (user.Role.toLowerCase() !== 'organization' || !user.organization) {
-    return res.status(400).json({ message: 'Only organizations can manage inventory' });
+  if (user.Role.toLowerCase() !== "organization" || !user.organization) {
+    return res
+      .status(400)
+      .json({ message: "Only organizations can manage inventory" });
   }
 
   const organizationId = user.organization.OrganizationId;
@@ -270,13 +316,22 @@ export const deleteInventory = async (req: Request, res: Response) => {
 
   if (!inventory) {
     return res.status(404).json({
-      message: `No inventory found for blood type ${bloodType}`
+      message: `No inventory found for blood type ${bloodType}`,
     });
   }
 
   await prisma.inventory.delete({
     where: { InventoryId: inventory.InventoryId },
   });
+
+  await logInventoryChange(
+    organizationId,
+    bloodType,
+    -inventory.Units,
+    "Remove",
+    inventory.Units,
+    0,
+  );
 
   return res.status(200).json({
     message: `Inventory for blood type ${bloodType} deleted successfully`,
@@ -289,31 +344,39 @@ export const updateInventoryUnits = async (req: Request, res: Response) => {
   const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
 
   // Check authentication
-  if (authError === 'missing') {
-    return res.status(401).json({ message: 'Authorization bearer token is required' });
+  if (authError === "missing") {
+    return res
+      .status(401)
+      .json({ message: "Authorization bearer token is required" });
   }
 
-  if (authError === 'invalid') {
-    return res.status(401).json({ message: 'Invalid or expired authorization token' });
+  if (authError === "invalid") {
+    return res
+      .status(401)
+      .json({ message: "Invalid or expired authorization token" });
   }
 
   if (!authUserId) {
-    return res.status(401).json({ message: 'User ID not found in token' });
+    return res.status(401).json({ message: "User ID not found in token" });
   }
 
   // Validate input
-  if (!bloodType || typeof bloodType !== 'string') {
-    return res.status(400).json({ message: 'Blood type is required and must be a string' });
+  if (!bloodType || typeof bloodType !== "string") {
+    return res
+      .status(400)
+      .json({ message: "Blood type is required and must be a string" });
   }
 
   if (!VALID_BLOOD_TYPES.includes(bloodType)) {
     return res.status(400).json({
-      message: `Invalid blood type. Must be one of: ${VALID_BLOOD_TYPES.join(', ')}`
+      message: `Invalid blood type. Must be one of: ${VALID_BLOOD_TYPES.join(", ")}`,
     });
   }
 
-  if (typeof units !== 'number' || units < 0) {
-    return res.status(400).json({ message: 'Units must be a non-negative number' });
+  if (typeof units !== "number" || units < 0) {
+    return res
+      .status(400)
+      .json({ message: "Units must be a non-negative number" });
   }
 
   // Fetch user and organization information
@@ -323,11 +386,13 @@ export const updateInventoryUnits = async (req: Request, res: Response) => {
   });
 
   if (!user) {
-    return res.status(404).json({ message: 'User not found' });
+    return res.status(404).json({ message: "User not found" });
   }
 
-  if (user.Role.toLowerCase() !== 'organization' || !user.organization) {
-    return res.status(400).json({ message: 'Only organizations can manage inventory' });
+  if (user.Role.toLowerCase() !== "organization" || !user.organization) {
+    return res
+      .status(400)
+      .json({ message: "Only organizations can manage inventory" });
   }
 
   const organizationId = user.organization.OrganizationId;
@@ -342,7 +407,7 @@ export const updateInventoryUnits = async (req: Request, res: Response) => {
 
   if (!existingInventory) {
     return res.status(404).json({
-      message: `No inventory found for blood type ${bloodType}. Please add it first.`
+      message: `No inventory found for blood type ${bloodType}. Please add it first.`,
     });
   }
 
@@ -352,8 +417,17 @@ export const updateInventoryUnits = async (req: Request, res: Response) => {
     data: { Units: units },
   });
 
+  await logInventoryChange(
+    organizationId,
+    bloodType,
+    units - existingInventory.Units,
+    "Update",
+    existingInventory.Units,
+    units,
+  );
+
   return res.status(200).json({
-    message: 'Inventory units updated successfully',
+    message: "Inventory units updated successfully",
     inventory: {
       inventoryId: updatedInventory.InventoryId,
       organizationId: updatedInventory.OrganizationId,
@@ -361,6 +435,71 @@ export const updateInventoryUnits = async (req: Request, res: Response) => {
       units: updatedInventory.Units,
     },
   });
+};
+
+// Get inventory history for the organization
+export const getInventoryHistory = async (req: Request, res: Response) => {
+  const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
+
+  if (authError === "missing") {
+    return res
+      .status(401)
+      .json({ message: "Authorization bearer token is required" });
+  }
+
+  if (authError === "invalid") {
+    return res
+      .status(401)
+      .json({ message: "Invalid or expired authorization token" });
+  }
+
+  if (!authUserId) {
+    return res.status(401).json({ message: "User ID not found in token" });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { UserId: authUserId },
+      include: { organization: true },
+    });
+
+    if (
+      !user ||
+      user.Role.toLowerCase() !== "organization" ||
+      !user.organization
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Only organizations can view history" });
+    }
+
+    const history = await prisma.inventoryHistory.findMany({
+      where: { OrganizationId: user.organization.OrganizationId },
+      orderBy: { CreatedAt: "desc" },
+    });
+
+    return res.status(200).json({
+      message: "Inventory history retrieved successfully",
+      history: history.map((item) => ({
+        historyId: item.HistoryId,
+        bloodType: item.BloodType,
+        unitsChanged: item.UnitsChanged,
+        actionType: item.ActionType,
+        previousTotal: item.PreviousTotal,
+        newTotal: item.NewTotal,
+        createdAt: item.CreatedAt,
+        referenceId: item.ReferenceId,
+      })),
+    });
+  } catch (error: any) {
+    console.error("Error fetching inventory history:", error);
+    return res
+      .status(500)
+      .json({
+        message: "Error fetching inventory history",
+        error: error.message,
+      });
+  }
 };
 
 // Get all organizations (for Gainers to browse)
@@ -372,32 +511,49 @@ export const getAllOrganizations = async (req: Request, res: Response) => {
         user: {
           select: {
             Email: true,
-            Phone: true
-          }
-        }
-      }
+            Phone: true,
+            ProfileImage: true,
+          },
+        },
+      },
     });
 
-    const formattedOrgs = organizations.map(org => ({
-      id: org.UserId,
-      organizationId: org.OrganizationId,
-      organizationName: org.OrganizationName,
-      location: org.Location,
-      contact: org.Contact,
-      email: org.user?.Email,
-      phone: org.user?.Phone,
-      inventory: org.inventory.map(inv => ({
-        bloodType: inv.BloodType,
-        units: inv.Units
-      }))
-    }));
+    const formattedOrgs = organizations.map((org) => {
+      let profileImage = null;
+      if (org.user?.ProfileImage) {
+        profileImage = org.user.ProfileImage.startsWith("http")
+          ? org.user.ProfileImage
+          : `${process.env.API_URL || "http://192.168.1.65:8000"}/${org.user.ProfileImage}`;
+      }
+
+      return {
+        id: org.UserId,
+        organizationId: org.OrganizationId,
+        organizationName: org.OrganizationName,
+        location: org.Location,
+        latitude: org.Latitude,
+        longitude: org.Longitude,
+        Latitude: org.Latitude,
+        Longitude: org.Longitude,
+        contact: org.Contact,
+        email: org.user?.Email,
+        phone: org.user?.Phone,
+        profileImage: profileImage,
+        inventory: org.inventory.map((inv) => ({
+          bloodType: inv.BloodType,
+          units: inv.Units,
+        })),
+      };
+    });
 
     return res.status(200).json({
-      message: 'Organizations retrieved successfully',
-      organizations: formattedOrgs
+      message: "Organizations retrieved successfully",
+      organizations: formattedOrgs,
     });
   } catch (error: any) {
-    console.error('Error fetching organizations:', error);
-    return res.status(500).json({ message: 'Error fetching organizations', error: error.message });
+    console.error("Error fetching organizations:", error);
+    return res
+      .status(500)
+      .json({ message: "Error fetching organizations", error: error.message });
   }
 };

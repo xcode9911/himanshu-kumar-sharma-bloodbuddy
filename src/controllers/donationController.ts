@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../models/index.js';
+import { logInventoryChange } from '../utils/inventoryLogger.js';
 import { createNotification } from './notificationController.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'bloodbuddysecret';
@@ -154,6 +155,16 @@ export const updateDonationStatus = async (req: Request, res: Response) => {
                         where: { InventoryId: inventory.InventoryId },
                         data: { Units: { increment: 1 } } // Assuming 1 unit per donation
                     });
+                    
+                    await logInventoryChange(
+                        organizationId,
+                        offer.donor.BloodType,
+                        1,
+                        'Donation',
+                        inventory.Units,
+                        inventory.Units + 1,
+                        offer.OfferId
+                    );
                 } else {
                     await tx.inventory.create({
                         data: {
@@ -162,7 +173,28 @@ export const updateDonationStatus = async (req: Request, res: Response) => {
                             Units: 1
                         }
                     });
+
+                    await logInventoryChange(
+                        organizationId,
+                        offer.donor.BloodType,
+                        1,
+                        'Donation',
+                        0,
+                        1,
+                        offer.OfferId
+                    );
                 }
+
+                // Update donor's LastDonationDate, eligibility, and availability
+                const donationDateValue = new Date(donationDate || new Date());
+                await tx.donor.update({
+                    where: { DonorId: offer.DonorId },
+                    data: {
+                        LastDonationDate: donationDateValue,
+                        EligibilityStatus: 'not_eligible',
+                        IsAvailable: false,
+                    }
+                });
             }
 
             return updatedOffer;

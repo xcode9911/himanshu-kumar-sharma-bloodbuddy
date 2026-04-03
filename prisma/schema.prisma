@@ -21,6 +21,7 @@ model User {
   Phone            String?
   Role             String
   CreatedAt        DateTime      @default(now())
+  ProfileImage     String?
   receivedMessages Chat[]        @relation("ReceivedMessages")
   sentMessages     Chat[]        @relation("SentMessages")
   donor            Donor?
@@ -72,11 +73,16 @@ model Organization {
   UserId           String   @unique
   OrganizationName String
   Location         String
+  Latitude         Float?
+  Longitude        Float?
   Contact          String?
   requests         BloodRequest[]
   campaigns        Campaign[]
+  createdCampaignCollaborations CampaignCollaboration[] @relation("CampaignCollaborationInviter")
+  campaignCollaborations        CampaignCollaboration[] @relation("CampaignCollaborationInvitee")
   offers           DonationOffer[]
   inventory        Inventory[]
+  inventoryHistory InventoryHistory[]
   user             User            @relation(fields: [UserId], references: [UserId])
 }
 
@@ -94,12 +100,34 @@ model Campaign {
   Title          String
   Description    String?
   Location       String
+  Latitude       Float?
+  Longitude      Float?
   StartDate      DateTime
   EndDate        DateTime
-  PosterData     Bytes?
-  PosterType     String?
+  PosterUrl      String?
+  IsCollaborativeCampaign Boolean @default(false)
+  CollaborationNote       String?
   organization   Organization     @relation(fields: [OrganizationId], references: [OrganizationId])
   attendances    CampAttendance[]
+  collaborations CampaignCollaboration[]
+}
+
+model CampaignCollaboration {
+  CollaborationId          Int      @id @default(autoincrement())
+  CampaignId               Int
+  OrganizationId           Int
+  InvitedByOrganizationId  Int
+  Status                   String   @default("pending") // pending, accepted, rejected
+  Message                  String?
+  ResponseMessage          String?
+  CreatedAt                DateTime @default(now())
+  RespondedAt              DateTime?
+  UpdatedAt                DateTime @updatedAt
+  campaign                 Campaign @relation(fields: [CampaignId], references: [CampaignId], onDelete: Cascade)
+  organization             Organization @relation("CampaignCollaborationInvitee", fields: [OrganizationId], references: [OrganizationId])
+  invitedBy                Organization @relation("CampaignCollaborationInviter", fields: [InvitedByOrganizationId], references: [OrganizationId])
+
+  @@unique([CampaignId, OrganizationId])
 }
 
 model CampAttendance {
@@ -202,4 +230,17 @@ model Location {
   donor        Donor           @relation(fields: [DonorId], references: [DonorId])
   gainer       Gainer          @relation(fields: [GainerId], references: [GainerId])
   response     DonorResponse   @relation(fields: [ResponseId], references: [ResponseId])
+}
+
+model InventoryHistory {
+  HistoryId      Int          @id @default(autoincrement())
+  OrganizationId Int
+  BloodType      String
+  UnitsChanged   Int          // Amount added or removed
+  ActionType     String       // 'Add', 'Update', 'Remove', 'Booking', 'Donation'
+  PreviousTotal  Int
+  NewTotal       Int
+  ReferenceId    Int?         // RequestId or OfferId if applicable
+  CreatedAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [OrganizationId], references: [OrganizationId])
 }

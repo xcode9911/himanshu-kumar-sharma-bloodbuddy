@@ -136,17 +136,25 @@ cron.schedule("0 * * * *", async () => {
   console.log("Running 24h cleanup job...");
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
   try {
-    const result = await prisma.bloodRequest.deleteMany({
-      where: {
-        RequestDate: {
-          lt: twentyFourHoursAgo
-        },
-        // Optional: only delete rejected/cancelled or pending?
-        // User said "notification should auto delete", which in 
-        // this app represents the request itself.
-      }
+    // First delete child DonorResponse records for old requests
+    const oldRequestIds = await prisma.bloodRequest.findMany({
+      where: { RequestDate: { lt: twentyFourHoursAgo } },
+      select: { RequestId: true },
     });
-    console.log(`Cleaned up ${result.count} old booking requests.`);
+
+    if (oldRequestIds.length > 0) {
+      const ids = oldRequestIds.map(r => r.RequestId);
+
+      await prisma.donorResponse.deleteMany({
+        where: { RequestId: { in: ids } },
+      });
+
+      const result = await prisma.bloodRequest.deleteMany({
+        where: { RequestId: { in: ids } },
+      });
+
+      console.log(`Cleaned up ${result.count} old booking requests.`);
+    }
   } catch (error) {
     console.error("Error in cleanup job:", error);
   }

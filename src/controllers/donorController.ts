@@ -92,19 +92,20 @@ export const setDonorAvailability = async (req: Request, res: Response) => {
       });
     }
 
-    // Check if donor has a LastDonationDate
+    // Check if donor has a LastDonationDate — 56-day cooldown
     if (freshDonor.LastDonationDate) {
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      const cooldownMs = 56 * 24 * 60 * 60 * 1000; // 56 days in milliseconds
+      const lastDonation = new Date(freshDonor.LastDonationDate).getTime();
+      const now = Date.now();
 
-      if (new Date(freshDonor.LastDonationDate) > threeMonthsAgo) {
-        const nextAvailableDate = new Date(freshDonor.LastDonationDate);
-        nextAvailableDate.setMonth(nextAvailableDate.getMonth() + 3);
+      if (now - lastDonation < cooldownMs) {
+        const nextAvailableDate = new Date(lastDonation + cooldownMs);
 
         return res.status(400).json({
-          message: 'You cannot set yourself as available yet. You must wait 3 months after your last donation.',
+          message: 'You cannot set yourself as available yet. You must wait 56 days after your last donation.',
           lastDonationDate: freshDonor.LastDonationDate,
           nextAvailableDate: nextAvailableDate,
+          daysRemaining: Math.ceil((lastDonation + cooldownMs - now) / (24 * 60 * 60 * 1000)),
         });
       }
     }
@@ -152,24 +153,34 @@ export const getAllDonors = async (req: Request, res: Response) => {
             FullName: true,
             Email: true,
             Phone: true,
+            ProfileImage: true,
           }
         }
       }
     });
 
-    const formattedDonors = donors.map(donor => ({
-      id: donor.UserId,
-      donorId: donor.DonorId,
-      name: donor.user.FullName,
-      email: donor.user.Email,
-      phone: donor.user.Phone,
-      bloodType: donor.BloodType,
-      location: donor.Location,
-      lastDonationDate: donor.LastDonationDate,
-      eligibilityStatus: donor.EligibilityStatus,
-      isAvailable: donor.IsAvailable,
-      role: 'Donor'
-    }));
+    const formattedDonors = donors.map(donor => {
+      let profileImage = donor.user?.ProfileImage 
+        ? donor.user.ProfileImage.startsWith("http")
+          ? donor.user.ProfileImage
+          : `${process.env.API_URL || "http://192.168.1.65:8000"}/${donor.user.ProfileImage}`
+        : null;
+
+      return {
+        id: donor.UserId,
+        donorId: donor.DonorId,
+        name: donor.user.FullName,
+        email: donor.user.Email,
+        phone: donor.user.Phone,
+        profileImage: profileImage,
+        bloodType: donor.BloodType,
+        location: donor.Location,
+        lastDonationDate: donor.LastDonationDate,
+        eligibilityStatus: donor.EligibilityStatus,
+        isAvailable: donor.IsAvailable,
+        role: 'Donor'
+      };
+    });
 
     return res.status(200).json({
       message: 'Donors retrieved successfully',
@@ -178,5 +189,78 @@ export const getAllDonors = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error fetching donors:', error);
     return res.status(500).json({ message: 'Error fetching donors', error: error.message });
+  }
+};
+
+export const getLeaderboard = async (req: Request, res: Response) => {
+  try {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    // Fetch accepted donation offers
+    const acceptedOffers = await prisma.donationOffer.findMany({
+      where: { Status: 'accepted' },
+      include: { donor: { include: { user: { select: { FullName: true, UserId: true } } } } }
+    });
+
+    // Fetch camp attendances
+    const campAttendances = await prisma.campAttendance.findMany({
+      include: { user: { select: { FullName: true, UserId: true } } }
+    });
+
+    // Aggregate data — track first donation time this month for monthly rank
+    const donorStats: Record<string, { userId: string; name: string; monthlyFirstDate: Date | null; yearlyCount: number }> = {};
+
+    const processDonation = (userId: string, name: string, date: Date) => {
+      if (!donorStats[userId]) {
+        donorStats[userId] = { userId, name, monthlyFirstDate: null, yearlyCount: 0 };
+      }
+
+      if (date >= startOfMonth) {
+        // Keep the EARLIEST donation this month — first to donate wins
+        if (!donorStats[userId].monthlyFirstDate || date < donorStats[userId].monthlyFirstDate!) {
+          donorStats[userId].monthlyFirstDate = date;
+        }
+      }
+
+      if (date >= startOfYear) {
+        donorStats[userId].yearlyCount += 1;
+      }
+    };
+
+    acceptedOffers.forEach(offer => {
+      if (offer.donor?.user) {
+        processDonation(offer.donor.user.UserId, offer.donor.user.FullName, offer.DonationDate || offer.CreatedAt);
+      }
+    });
+
+    campAttendances.forEach(attendance => {
+      if (attendance.user) {
+        processDonation(attendance.user.UserId, attendance.user.FullName, attendance.CreatedAt);
+      }
+    });
+
+    const statsArray = Object.values(donorStats);
+
+    // Monthly: Ranked by FIRST donation this month — earliest timestamp = rank 1
+    const monthlyTop = statsArray
+      .filter(s => s.monthlyFirstDate !== null)
+      .sort((a, b) => a.monthlyFirstDate!.getTime() - b.monthlyFirstDate!.getTime())
+      .slice(0, 10)
+      .map((s, i) => ({ ...s, rank: i + 1, monthlyFirstDate: s.monthlyFirstDate!.toISOString() }));
+
+    // Yearly: Ranked by total donation count this year — highest count = rank 1
+    const yearlyTop = statsArray
+      .filter(s => s.yearlyCount > 0)
+      .sort((a, b) => b.yearlyCount - a.yearlyCount)
+      .slice(0, 10)
+      .map((s, i) => ({ ...s, rank: i + 1 }));
+
+    return res.status(200).json({ monthly: monthlyTop, yearly: yearlyTop });
+
+  } catch (error: any) {
+    console.error('Error fetching leaderboard:', error);
+    return res.status(500).json({ message: 'Error fetching leaderboard', error: error.message });
   }
 };
