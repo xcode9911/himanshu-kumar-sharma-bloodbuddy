@@ -39,7 +39,7 @@ export default function DonationHistoryScreen() {
                 setHistory(data.history);
             }
         } catch (error) {
-            console.error("Error fetching history:", error);
+            console.log("Error fetching history:", error);
         } finally {
             setLoading(false);
             setRefreshing(false);

@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "The app needs access to your photos to let you upload posters for your blood donation campaigns."
-      }
+      },
+      "bundleIdentifier": "com.illusionhex5464.Bloodbuddy"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +23,14 @@
         "monochromeImage": "./assets/images/logo.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA"
+      ],
+      "package": "com.illusionhex5464.Bloodbuddy"
     },
     "web": {
       "output": "static",
@@ -47,8 +55,7 @@
       "@react-native-community/datetimepicker",
       "expo-web-browser",
       "expo-asset",
-      "expo-image-picker",
-      "expo-barcode-scanner"
+      "expo-image-picker"
     ],
     "experiments": {
       "typedRoutes": true,

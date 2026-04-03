@@ -61,7 +61,7 @@ const EsewaPaymentModal: React.FC<EsewaPaymentModalProps> = ({
                 onClose();
             }
         } catch (error) {
-            console.error("eSewa Initiation Error:", error);
+            console.log("eSewa Initiation Error:", error);
             Alert.alert("Error", "Network error during payment initiation");
             onClose();
         } finally {
@@ -90,7 +90,7 @@ const EsewaPaymentModal: React.FC<EsewaPaymentModalProps> = ({
                     Alert.alert("Error", "Payment confirmation data missing from URL");
                 }
             } catch (error) {
-                console.error("URL parsing error:", error);
+                console.log("URL parsing error:", error);
                 Alert.alert("Error", "Failed to parse payment confirmation");
             }
         } else if (navState.url.includes('esewa-failure')) {
@@ -144,7 +144,7 @@ const EsewaPaymentModal: React.FC<EsewaPaymentModalProps> = ({
                 Alert.alert("Verification Failed", result.message || "Could not verify payment");
             }
         } catch (error) {
-            console.error("Verification Error:", error);
+            console.log("Verification Error:", error);
             Alert.alert("Error", "Network error during verification");
         } finally {
             setLoading(false);

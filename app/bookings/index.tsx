@@ -109,7 +109,7 @@ export default function BookingsScreen() {
             combinedData.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
             setBookings(combinedData);
         } catch (error) {
-            console.error("Error fetching data:", error);
+            console.log("Error fetching data:", error);
         } finally {
             setLoading(false);
         }

@@ -68,7 +68,7 @@ const KhaltiPaymentModal: React.FC<KhaltiPaymentModalProps> = ({
                 onClose();
             }
         } catch (error) {
-            console.error("Payment Initiation Error:", error);
+            console.log("Payment Initiation Error:", error);
             Alert.alert("Error", "Network error during payment initiation");
             onClose();
         } finally {
@@ -142,7 +142,7 @@ const KhaltiPaymentModal: React.FC<KhaltiPaymentModalProps> = ({
                 Alert.alert("Verification Failed", result.message || "Could not verify payment");
             }
         } catch (error) {
-            console.error("Verification Error:", error);
+            console.log("Verification Error:", error);
             Alert.alert("Error", "Network error during verification");
         } finally {
             setLoading(false);

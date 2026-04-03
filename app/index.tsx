@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
+import { isDetoxTest } from '../utils/detox';
 import {
   Animated,
   Dimensions,
@@ -41,23 +42,37 @@ function Welcome() {
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    // Skip animation if running in Detox to avoid synchronization issues
+    if (isDetoxTest()) {
+      return;
+    }
+
+    const animation = Animated.sequence([
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 250,
         useNativeDriver: true,
-      }).start(() => {
-        setCurrentIndex((prev) => (prev + 1) % images.length);
+        delay: 3000,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]);
 
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 250,
-          useNativeDriver: true,
-        }).start();
-      });
-    }, 3000);
+    const loop = Animated.loop(animation);
+    loop.start();
 
-    return () => clearInterval(interval);
+    // To update the index while looping:
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % images.length);
+    }, 3500);
+
+    return () => {
+      loop.stop();
+      clearInterval(interval);
+    };
   }, []);
 
   const handleGetStarted = () => {
@@ -118,6 +133,7 @@ function Welcome() {
         {/* BUTTON */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
+            testID="getStartedButton"
             style={styles.getStartedButton}
             onPress={handleGetStarted}
             activeOpacity={0.8}

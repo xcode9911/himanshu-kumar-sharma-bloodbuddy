@@ -1,80 +1,101 @@
-import { Ionicons } from "@expo/vector-icons"
-import AsyncStorage from "@react-native-async-storage/async-storage"
-import { useRouter } from "expo-router"
-import { jwtDecode } from "jwt-decode"
-import React, { useEffect, useState } from "react"
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect, useRouter } from "expo-router";
+import { jwtDecode } from "jwt-decode";
+import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native"
-import DonationStatusModal from "../../components/DonationStatusModal"
-import Navigation from "../../components/Navigation"
-import { API_ENDPOINTS } from "../../config/api"
-import { moderateScale, scale, verticalScale } from "../../utils/responsive"
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Image,
+    Linking,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import DonationStatusModal from "../../components/DonationStatusModal";
+import Navigation from "../../components/Navigation";
+import { API_BASE_URL, API_ENDPOINTS } from "../../config/api";
+import { getUserFriendlyError } from "../../utils/errorMessages";
+import { moderateScale, scale, verticalScale } from "../../utils/responsive";
 
-
-const { width } = Dimensions.get("window")
+const { width } = Dimensions.get("window");
 
 type UserData = {
-  id: string
-  fullName: string
-  email: string
-  role: string
-  phone?: string
-  bloodType?: string
-  location?: string
-  address?: string
-  organizationName?: string
-  eligibilityStatus?: string
-  lastDonationDate?: string
-}
+  id: string;
+  fullName: string;
+  email: string;
+  role: string;
+  phone?: string;
+  bloodType?: string;
+  location?: string;
+  address?: string;
+  organizationName?: string;
+  eligibilityStatus?: string;
+  lastDonationDate?: string;
+  profileImage?: any;
+};
 
 export default function ProfileScreen() {
-  const router = useRouter()
-  const [userData, setUserData] = useState<UserData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isAvailable, setIsAvailable] = useState(false)
-  const [isTogglingAvailability, setIsTogglingAvailability] = useState(false)
-  const [statusModalVisible, setStatusModalVisible] = useState(false)
+  const router = useRouter();
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAvailable, setIsAvailable] = useState(false);
+  const [isTogglingAvailability, setIsTogglingAvailability] = useState(false);
+  const [statusModalVisible, setStatusModalVisible] = useState(false);
   const [statusModalData, setStatusModalData] = useState<{
-    status: 'available' | 'unavailable' | 'cooling'
-    lastDonation?: string
-    nextEligible?: string
-    message?: string
-  }>({ status: 'unavailable' })
+    status: "available" | "unavailable" | "cooling";
+    lastDonation?: string;
+    nextEligible?: string;
+    message?: string;
+  }>({ status: "unavailable" });
 
-  useEffect(() => {
-    loadUserData()
-  }, [])
+  useFocusEffect(
+    useCallback(() => {
+      loadUserData();
+    }, []),
+  );
+
+  const handleHelpSupport = async () => {
+    const email = "blood.officiallybuddy@gmail.com";
+    const mailtoUrl = `mailto:${email}`;
+
+    try {
+      const supported = await Linking.canOpenURL(mailtoUrl);
+      if (!supported) {
+        Alert.alert("Mail App Not Found", `Please email us at ${email}`);
+        return;
+      }
+
+      await Linking.openURL(mailtoUrl);
+    } catch (error) {
+      Alert.alert("Unable to Open Mail", `Please email us at ${email}`);
+    }
+  };
 
   const loadUserData = async () => {
     try {
-      const token = await AsyncStorage.getItem("authToken")
+      const token = await AsyncStorage.getItem("authToken");
       if (!token) {
-        const userDataString = await AsyncStorage.getItem("userData")
+        const userDataString = await AsyncStorage.getItem("userData");
         if (userDataString) {
-          setUserData(JSON.parse(userDataString))
-          setIsLoading(false)
-          return
+          setUserData(JSON.parse(userDataString));
+          setIsLoading(false);
+          return;
         }
-        Alert.alert("Error", "No user data found. Please login again.")
-        router.replace("/auth/login")
-        return
+        Alert.alert("Error", "No user data found. Please login again.");
+        router.replace("/auth/login");
+        return;
       }
 
       try {
-        const payload: any = jwtDecode(token)
-        const jwtUser = payload?.user || payload || {}
-        const role = (jwtUser.role || "").toString().toLowerCase()
-        const roleData = jwtUser[role] || {}
+        const payload: any = jwtDecode(token);
+        const jwtUser = payload?.user || payload || {};
+        const role = (jwtUser.role || "").toString().toLowerCase();
+        const roleData = jwtUser[role] || {};
 
         const normalized: UserData = {
           id: String(jwtUser.userId || jwtUser.id || jwtUser._id || ""),
@@ -85,37 +106,43 @@ export default function ProfileScreen() {
           bloodType: jwtUser.bloodType || roleData.bloodType,
           location: jwtUser.location || roleData.location,
           address: jwtUser.address || roleData.address,
-          organizationName: jwtUser.organizationName || roleData.organizationName,
+          organizationName:
+            jwtUser.organizationName || roleData.organizationName,
           eligibilityStatus:
             typeof jwtUser.eligibilityStatus === "boolean"
               ? jwtUser.eligibilityStatus
                 ? "eligible"
                 : "ineligible"
               : jwtUser.eligibilityStatus || roleData.eligibilityStatus,
-          lastDonationDate: jwtUser.lastDonationDate || roleData.lastDonationDate,
-        }
+          lastDonationDate:
+            jwtUser.lastDonationDate || roleData.lastDonationDate,
+          profileImage:
+            jwtUser.ProfileImage ||
+            jwtUser.profileImage ||
+            roleData.ProfileImage,
+        };
 
-        if (role === 'donor') {
-          setIsAvailable(!!roleData.isAvailable)
+        if (role === "donor") {
+          setIsAvailable(!!roleData.isAvailable);
         }
-        setUserData(normalized)
+        setUserData(normalized);
       } catch (e) {
         // Fallback to cached data
-        const userDataString = await AsyncStorage.getItem("userData")
+        const userDataString = await AsyncStorage.getItem("userData");
         if (userDataString) {
-          setUserData(JSON.parse(userDataString))
+          setUserData(JSON.parse(userDataString));
         } else {
-          Alert.alert("Error", "No user data found. Please login again.")
-          router.replace("/auth/login")
+          Alert.alert("Error", "No user data found. Please login again.");
+          router.replace("/auth/login");
         }
       }
     } catch (error) {
-      console.error("Error loading user data:", error)
-      Alert.alert("Error", "Failed to load profile data")
+      console.log("Error loading user data:", error);
+      Alert.alert("Error", "Failed to load profile data");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleLogout = async () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -124,24 +151,24 @@ export default function ProfileScreen() {
         text: "Logout",
         style: "destructive",
         onPress: async () => {
-          await AsyncStorage.removeItem("authToken")
-          await AsyncStorage.removeItem("userData")
-          router.replace("/auth/login")
+          await AsyncStorage.removeItem("authToken");
+          await AsyncStorage.removeItem("userData");
+          router.replace("/auth/login");
         },
       },
-    ])
-  }
+    ]);
+  };
 
   const handleAvailabilityToggle = async (value: boolean) => {
-    setIsTogglingAvailability(true)
+    setIsTogglingAvailability(true);
     try {
-      const token = await AsyncStorage.getItem("authToken")
+      const token = await AsyncStorage.getItem("authToken");
       if (!token || !userData) {
-        Alert.alert("Error", "Please login again")
-        return
+        Alert.alert("Error", "Please login again");
+        return;
       }
 
-      console.log("Toggling availability to:", value)
+      console.log("Toggling availability to:", value);
       const response = await fetch(API_ENDPOINTS.DONOR_AVAILABILITY, {
         method: "PUT",
         headers: {
@@ -151,82 +178,84 @@ export default function ProfileScreen() {
         body: JSON.stringify({
           isAvailable: value,
         }),
-      })
+      });
 
-      const data = await response.json()
-      console.log("API Response status:", response.status)
+      const data = await response.json();
+      console.log("API Response status:", response.status);
 
       if (!response.ok) {
         // Handle 3-month restriction specifically
         if (data.nextAvailableDate || data.message?.includes("3 months")) {
           setStatusModalData({
-            status: 'cooling',
+            status: "cooling",
             lastDonation: data.lastDonationDate || userData.lastDonationDate,
             nextEligible: data.nextAvailableDate,
-            message: data.message
-          })
-          setStatusModalVisible(true)
-          setIsAvailable(false) // Force false
-          return
+            message: data.message,
+          });
+          setStatusModalVisible(true);
+          setIsAvailable(false); // Force false
+          return;
         }
-        throw new Error(data.message || "Failed to update availability")
+        throw new Error(data.message || "Failed to update availability");
       }
 
-      console.log("API Response data:", data)
-      setIsAvailable(value)
+      console.log("API Response data:", data);
+      setIsAvailable(value);
 
       // Persist the new token and user data returned by the server
       if (data.token && data.user) {
-        await AsyncStorage.setItem("authToken", data.token)
-        await AsyncStorage.setItem("userData", JSON.stringify(data.user))
+        await AsyncStorage.setItem("authToken", data.token);
+        await AsyncStorage.setItem("userData", JSON.stringify(data.user));
       }
 
       // Show success modal
       setStatusModalData({
-        status: value ? 'available' : 'unavailable',
+        status: value ? "available" : "unavailable",
         lastDonation: userData.lastDonationDate,
-        message: `You are now ${value ? "available" : "unavailable"} for donations.`
-      })
-      setStatusModalVisible(true)
-
+        message: `You are now ${value ? "available" : "unavailable"} for donations.`,
+      });
+      setStatusModalVisible(true);
     } catch (error: any) {
-      console.error("Availability toggle error:", error)
-      Alert.alert("Error", error.message || "Failed to update availability status")
-      setIsAvailable(!value) // Revert toggle on error
+      console.log("Availability toggle error:", error);
+      Alert.alert(
+        "Update failed",
+        getUserFriendlyError(error, "Failed to update availability status"),
+      );
+      setIsAvailable(!value); // Revert toggle on error
     } finally {
-      setIsTogglingAvailability(false)
+      setIsTogglingAvailability(false);
     }
-  }
+  };
 
   const handleEdit = () => {
-    router.push("/edit-profile" as any)
-  }
+    router.push("/edit-profile" as any);
+  };
 
   const getRoleIcon = (role: string) => {
     switch (role?.toLowerCase()) {
       case "donor":
-        return "water"
+        return "water";
       case "gainer":
-        return "person"
+        return "person";
       case "organization":
-        return "business"
+        return "business";
       default:
-        return "person"
+        return "person";
     }
-  }
+  };
 
   const getRoleColor = (role: string) => {
     switch (role?.toLowerCase()) {
       case "donor":
-        return "#FF6B6B"
+        return "#FF6B6B";
       case "gainer":
-        return "#4ECDC4"
+        return "#4ECDC4";
       case "organization":
-        return "#95E1D3"
+        return "#95E1D3";
       default:
-        return "#D11B31"
+        return "#D11B31";
     }
-  }
+  };
 
   if (isLoading) {
     return (
@@ -234,7 +263,7 @@ export default function ProfileScreen() {
         <ActivityIndicator size="large" color="#D11B31" />
         <Text style={styles.loadingText}>Loading profile...</Text>
       </View>
-    )
+    );
   }
 
   if (!userData) {
@@ -245,18 +274,25 @@ export default function ProfileScreen() {
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>
-    )
+    );
   }
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
           <Ionicons name="chevron-back" size={28} color="#D11B31" />
         </TouchableOpacity>
         <View style={styles.headerSpacer} />
-        <TouchableOpacity style={styles.editIconButton} onPress={handleEdit}>
+        <TouchableOpacity
+          testID="profileEditButton"
+          style={styles.editIconButton}
+          onPress={handleEdit}
+        >
           <Ionicons name="create-outline" size={24} color="#D11B31" />
         </TouchableOpacity>
       </View>
@@ -268,14 +304,41 @@ export default function ProfileScreen() {
       >
         {/* Profile Image Section */}
         <View style={styles.profileImageSection}>
-          <View style={[styles.profileImageContainer, { borderColor: getRoleColor(userData.role) }]}>
-            <Image
-              source={require("../../assets/images/logo.png")}
-              style={styles.profileImage}
-              resizeMode="cover"
-            />
-            <View style={[styles.roleBadge, { backgroundColor: getRoleColor(userData.role) }]}>
-              <Ionicons name={getRoleIcon(userData.role)} size={16} color="#FFF" />
+          <View
+            style={[
+              styles.profileImageContainer,
+              { borderColor: getRoleColor(userData.role) },
+            ]}
+          >
+            {userData.profileImage ? (
+              <Image
+                source={{
+                  uri:
+                    typeof userData.profileImage === "string"
+                      ? userData.profileImage
+                      : `${API_BASE_URL}/${userData.profileImage.path}`,
+                }}
+                style={styles.profileImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <Image
+                source={require("../../assets/images/logo.png")}
+                style={styles.profileImage}
+                resizeMode="cover"
+              />
+            )}
+            <View
+              style={[
+                styles.roleBadge,
+                { backgroundColor: getRoleColor(userData.role) },
+              ]}
+            >
+              <Ionicons
+                name={getRoleIcon(userData.role)}
+                size={16}
+                color="#FFF"
+              />
             </View>
           </View>
           <Text style={styles.profileName}>{userData.fullName}</Text>
@@ -289,23 +352,31 @@ export default function ProfileScreen() {
               style={styles.availabilityCard}
               onPress={() => {
                 setStatusModalData({
-                  status: isAvailable ? 'available' : 'unavailable',
+                  status: isAvailable ? "available" : "unavailable",
                   lastDonation: userData.lastDonationDate,
                   message: isAvailable
                     ? "You are currently available for emergency donations."
-                    : "You are currently unavailable. Toggle the switch to change your status."
-                })
-                setStatusModalVisible(true)
+                    : "You are currently unavailable. Toggle the switch to change your status.",
+                });
+                setStatusModalVisible(true);
               }}
             >
               <View style={styles.availabilityHeader}>
                 <View style={styles.availabilityIconContainer}>
-                  <Ionicons name="checkmark-done-outline" size={24} color="#D11B31" />
+                  <Ionicons
+                    name="checkmark-done-outline"
+                    size={24}
+                    color="#D11B31"
+                  />
                 </View>
                 <View style={styles.availabilityContent}>
-                  <Text style={styles.availabilityTitle}>Available for Donation</Text>
+                  <Text style={styles.availabilityTitle}>
+                    Available for Donation
+                  </Text>
                   <Text style={styles.availabilityDescription}>
-                    {isAvailable ? "You are currently available" : "You are currently unavailable"}
+                    {isAvailable
+                      ? "You are currently available"
+                      : "You are currently unavailable"}
                   </Text>
                 </View>
                 <Switch
@@ -316,6 +387,28 @@ export default function ProfileScreen() {
                   thumbColor={isAvailable ? "#D11B31" : "#6B7280"}
                 />
               </View>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Your Card - Donor only */}
+        {userData.role?.toLowerCase() === "donor" && (
+          <View style={styles.cardContainer}>
+            <TouchableOpacity
+              style={styles.yourCardButton}
+              activeOpacity={0.85}
+              onPress={() => router.push("/donor-card" as any)}
+            >
+              <View style={styles.yourCardIconContainer}>
+                <Ionicons name="card-outline" size={24} color="#D11B31" />
+              </View>
+              <View style={styles.yourCardContent}>
+                <Text style={styles.yourCardTitle}>Your Card</Text>
+                <Text style={styles.yourCardDescription}>
+                  View your donor identity card
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#999" />
             </TouchableOpacity>
           </View>
         )}
@@ -352,11 +445,17 @@ export default function ProfileScreen() {
                 {userData.bloodType && (
                   <View style={styles.detailRow}>
                     <View style={styles.detailIconContainer}>
-                      <Ionicons name="water-outline" size={20} color="#D11B31" />
+                      <Ionicons
+                        name="water-outline"
+                        size={20}
+                        color="#D11B31"
+                      />
                     </View>
                     <View style={styles.detailContent}>
                       <Text style={styles.detailLabel}>Blood Type</Text>
-                      <Text style={styles.detailValue}>{userData.bloodType}</Text>
+                      <Text style={styles.detailValue}>
+                        {userData.bloodType}
+                      </Text>
                     </View>
                   </View>
                 )}
@@ -364,11 +463,17 @@ export default function ProfileScreen() {
                 {userData.location && (
                   <View style={styles.detailRow}>
                     <View style={styles.detailIconContainer}>
-                      <Ionicons name="location-outline" size={20} color="#D11B31" />
+                      <Ionicons
+                        name="location-outline"
+                        size={20}
+                        color="#D11B31"
+                      />
                     </View>
                     <View style={styles.detailContent}>
                       <Text style={styles.detailLabel}>Location</Text>
-                      <Text style={styles.detailValue}>{userData.location}</Text>
+                      <Text style={styles.detailValue}>
+                        {userData.location}
+                      </Text>
                     </View>
                   </View>
                 )}
@@ -376,11 +481,17 @@ export default function ProfileScreen() {
                 {userData.eligibilityStatus && (
                   <View style={styles.detailRow}>
                     <View style={styles.detailIconContainer}>
-                      <Ionicons name="checkmark-circle-outline" size={20} color="#D11B31" />
+                      <Ionicons
+                        name="checkmark-circle-outline"
+                        size={20}
+                        color="#D11B31"
+                      />
                     </View>
                     <View style={styles.detailContent}>
                       <Text style={styles.detailLabel}>Eligibility Status</Text>
-                      <Text style={styles.detailValue}>{userData.eligibilityStatus}</Text>
+                      <Text style={styles.detailValue}>
+                        {userData.eligibilityStatus}
+                      </Text>
                     </View>
                   </View>
                 )}
@@ -388,12 +499,18 @@ export default function ProfileScreen() {
                 {userData.lastDonationDate && (
                   <View style={styles.detailRow}>
                     <View style={styles.detailIconContainer}>
-                      <Ionicons name="calendar-outline" size={20} color="#D11B31" />
+                      <Ionicons
+                        name="calendar-outline"
+                        size={20}
+                        color="#D11B31"
+                      />
                     </View>
                     <View style={styles.detailContent}>
                       <Text style={styles.detailLabel}>Last Donation</Text>
                       <Text style={styles.detailValue}>
-                        {new Date(userData.lastDonationDate).toLocaleDateString()}
+                        {new Date(
+                          userData.lastDonationDate,
+                        ).toLocaleDateString()}
                       </Text>
                     </View>
                   </View>
@@ -418,11 +535,17 @@ export default function ProfileScreen() {
                 {userData.organizationName && (
                   <View style={styles.detailRow}>
                     <View style={styles.detailIconContainer}>
-                      <Ionicons name="business-outline" size={20} color="#D11B31" />
+                      <Ionicons
+                        name="business-outline"
+                        size={20}
+                        color="#D11B31"
+                      />
                     </View>
                     <View style={styles.detailContent}>
                       <Text style={styles.detailLabel}>Organization Name</Text>
-                      <Text style={styles.detailValue}>{userData.organizationName}</Text>
+                      <Text style={styles.detailValue}>
+                        {userData.organizationName}
+                      </Text>
                     </View>
                   </View>
                 )}
@@ -430,11 +553,17 @@ export default function ProfileScreen() {
                 {userData.location && (
                   <View style={styles.detailRow}>
                     <View style={styles.detailIconContainer}>
-                      <Ionicons name="location-outline" size={20} color="#D11B31" />
+                      <Ionicons
+                        name="location-outline"
+                        size={20}
+                        color="#D11B31"
+                      />
                     </View>
                     <View style={styles.detailContent}>
                       <Text style={styles.detailLabel}>Location</Text>
-                      <Text style={styles.detailValue}>{userData.location}</Text>
+                      <Text style={styles.detailValue}>
+                        {userData.location}
+                      </Text>
                     </View>
                   </View>
                 )}
@@ -445,19 +574,19 @@ export default function ProfileScreen() {
 
         {/* Account Actions */}
         <View style={styles.actionsContainer}>
-          <TouchableOpacity style={styles.actionButton}>
-            <Ionicons name="settings-outline" size={22} color="#666" />
-            <Text style={styles.actionButtonText}>Settings</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleHelpSupport}
+          >
             <Ionicons name="help-circle-outline" size={22} color="#666" />
             <Text style={styles.actionButtonText}>Help & Support</Text>
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push("/privacy-policy")}
+          >
             <Ionicons name="shield-checkmark-outline" size={22} color="#666" />
             <Text style={styles.actionButtonText}>Privacy Policy</Text>
             <Ionicons name="chevron-forward" size={20} color="#999" />
@@ -465,7 +594,9 @@ export default function ProfileScreen() {
 
           <TouchableOpacity style={styles.actionButton} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={22} color="#D11B31" />
-            <Text style={[styles.actionButtonText, styles.logoutText]}>Logout</Text>
+            <Text style={[styles.actionButtonText, styles.logoutText]}>
+              Logout
+            </Text>
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
         </View>
@@ -477,9 +608,12 @@ export default function ProfileScreen() {
         />
       </ScrollView>
 
-      <Navigation userType={userData?.role as any || "donor"} initialTab="profile" />
+      <Navigation
+        userType={(userData?.role as any) || "donor"}
+        initialTab="profile"
+      />
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -715,4 +849,42 @@ const styles = StyleSheet.create({
     marginLeft: scale(12),
     fontWeight: "500",
   },
-})
+  cardContainer: {
+    paddingHorizontal: scale(20),
+    marginTop: verticalScale(16),
+  },
+  yourCardButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF",
+    borderRadius: moderateScale(16),
+    padding: scale(16),
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  yourCardIconContainer: {
+    width: scale(48),
+    height: scale(48),
+    borderRadius: moderateScale(24),
+    backgroundColor: "#FEE2E2",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: scale(12),
+  },
+  yourCardContent: {
+    flex: 1,
+  },
+  yourCardTitle: {
+    fontSize: moderateScale(16),
+    fontWeight: "600",
+    color: "#000",
+    marginBottom: verticalScale(2),
+  },
+  yourCardDescription: {
+    fontSize: moderateScale(13),
+    color: "#666",
+  },
+});

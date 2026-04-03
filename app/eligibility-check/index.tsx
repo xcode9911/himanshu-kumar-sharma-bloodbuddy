@@ -1,57 +1,62 @@
-import { Ionicons } from "@expo/vector-icons"
-import AsyncStorage from "@react-native-async-storage/async-storage"
-import { useLocalSearchParams, useRouter } from "expo-router"
-import React, { useEffect, useState } from "react"
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
-  Alert,
-  Dimensions,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native"
-import { API_ENDPOINTS } from "../../config/api"
-import { moderateScale, scale, verticalScale } from "../../utils/responsive"
+    Alert,
+    Dimensions,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { API_ENDPOINTS } from "../../config/api";
+import { getUserFriendlyError } from "../../utils/errorMessages";
+import { moderateScale, scale, verticalScale } from "../../utils/responsive";
 
-const { width, height } = Dimensions.get("window")
+const { width, height } = Dimensions.get("window");
 
 interface EligibilityQuestion {
-  id: string
-  question: string
-  category: string
-  hard_reject: boolean // If yes, auto-reject
-  soft_flag: boolean // If yes, combine with other factors
+  id: string;
+  question: string;
+  category: string;
+  hard_reject: boolean; // If yes, auto-reject
+  soft_flag: boolean; // If yes, combine with other factors
 }
 
 const ELIGIBILITY_QUESTIONS: EligibilityQuestion[] = [
   // Health & Medical History
   {
     id: "q1",
-    question: "In the past 2 weeks, have you had fever, flu-like symptoms, or taken antibiotics—even if you feel fine now?",
+    question:
+      "In the past 2 weeks, have you had fever, flu-like symptoms, or taken antibiotics—even if you feel fine now?",
     category: "Health & Medical History",
     hard_reject: true,
     soft_flag: false,
   },
   {
     id: "q2",
-    question: "Have you ever been advised by a doctor not to donate blood, even temporarily?",
+    question:
+      "Have you ever been advised by a doctor not to donate blood, even temporarily?",
     category: "Health & Medical History",
     hard_reject: true,
     soft_flag: false,
   },
   {
     id: "q3",
-    question: "Have you had any surgery, dental extraction, or invasive procedure in the last 6 months?",
+    question:
+      "Have you had any surgery, dental extraction, or invasive procedure in the last 6 months?",
     category: "Health & Medical History",
     hard_reject: true,
     soft_flag: false,
   },
   {
     id: "q4",
-    question: "Do you currently take any medicines that were recently started or adjusted?",
+    question:
+      "Do you currently take any medicines that were recently started or adjusted?",
     category: "Health & Medical History",
     hard_reject: true,
     soft_flag: false,
@@ -60,28 +65,32 @@ const ELIGIBILITY_QUESTIONS: EligibilityQuestion[] = [
   // Lifestyle & Risk Assessment
   {
     id: "q5",
-    question: "Have you had any needle exposure (tattoo, piercing, injection, IV drip) outside a hospital in the last 6–12 months?",
+    question:
+      "Have you had any needle exposure (tattoo, piercing, injection, IV drip) outside a hospital in the last 6–12 months?",
     category: "Lifestyle & Risk Assessment",
     hard_reject: true,
     soft_flag: false,
   },
   {
     id: "q6",
-    question: "Have you traveled recently to an area where malaria, dengue, or typhoid is common?",
+    question:
+      "Have you traveled recently to an area where malaria, dengue, or typhoid is common?",
     category: "Lifestyle & Risk Assessment",
     hard_reject: true,
     soft_flag: false,
   },
   {
     id: "q7",
-    question: "In the last 12 months, have you had an illness that required hospital admission or IV fluids?",
+    question:
+      "In the last 12 months, have you had an illness that required hospital admission or IV fluids?",
     category: "Lifestyle & Risk Assessment",
     hard_reject: true,
     soft_flag: false,
   },
   {
     id: "q8",
-    question: "Have you donated blood or platelets recently (within the last 3 months)?",
+    question:
+      "Have you donated blood or platelets recently (within the last 3 months)?",
     category: "Lifestyle & Risk Assessment",
     hard_reject: true,
     soft_flag: false,
@@ -90,21 +99,24 @@ const ELIGIBILITY_QUESTIONS: EligibilityQuestion[] = [
   // Physical Readiness
   {
     id: "q9",
-    question: "Did you get less than 5–6 hours of sleep last night or skip a major meal today?",
+    question:
+      "Did you get less than 5–6 hours of sleep last night or skip a major meal today?",
     category: "Physical Readiness",
     hard_reject: false,
     soft_flag: true,
   },
   {
     id: "q10",
-    question: "Have you experienced dizziness, fainting, or weakness during or after a previous blood donation?",
+    question:
+      "Have you experienced dizziness, fainting, or weakness during or after a previous blood donation?",
     category: "Physical Readiness",
     hard_reject: true,
     soft_flag: false,
   },
   {
     id: "q11",
-    question: "Has your body weight changed significantly in the last few months without trying?",
+    question:
+      "Has your body weight changed significantly in the last few months without trying?",
     category: "Physical Readiness",
     hard_reject: true,
     soft_flag: false,
@@ -113,154 +125,170 @@ const ELIGIBILITY_QUESTIONS: EligibilityQuestion[] = [
   // Hidden Red-Flag Questions
   {
     id: "q12",
-    question: "Have you ever tested positive for any infection but were told it was 'not serious' or 'temporary'?",
+    question:
+      "Have you ever tested positive for any infection but were told it was 'not serious' or 'temporary'?",
     category: "Hidden Red-Flags",
     hard_reject: true,
     soft_flag: false,
   },
   {
     id: "q13",
-    question: "Do you currently feel completely healthy today, not just generally healthy?",
+    question:
+      "Do you currently feel completely healthy today, not just generally healthy?",
     category: "Hidden Red-Flags",
     hard_reject: true, // No = reject
     soft_flag: false,
   },
   {
     id: "q14",
-    question: "Have you consumed alcohol in the last 24–48 hours, even a small amount?",
+    question:
+      "Have you consumed alcohol in the last 24–48 hours, even a small amount?",
     category: "Hidden Red-Flags",
     hard_reject: true,
     soft_flag: false,
   },
   {
     id: "q15",
-    question: "Is there any reason—medical or personal—you feel unsure about donating today?",
+    question:
+      "Is there any reason—medical or personal—you feel unsure about donating today?",
     category: "Hidden Red-Flags",
     hard_reject: true,
     soft_flag: false,
   },
-]
+];
 
-type AnswerMap = Record<string, boolean | null>
+type AnswerMap = Record<string, boolean | null>;
 
 export default function EligibilityCheckScreen() {
-  const router = useRouter()
-  const params = useLocalSearchParams<{ userType?: string }>()
-  const userType = params.userType || null
+  const router = useRouter();
+  const params = useLocalSearchParams<{ userType?: string }>();
+  const userType = params.userType || null;
 
   const [answers, setAnswers] = useState<AnswerMap>(
-    ELIGIBILITY_QUESTIONS.reduce(
-      (acc, q) => {
-        acc[q.id] = null
-        return acc
-      },
-      {} as AnswerMap
-    )
-  )
-  const [isLoading, setIsLoading] = useState(false)
-  const [showResult, setShowResult] = useState(false)
-  const [resultData, setResultData] = useState<any>(null)
+    ELIGIBILITY_QUESTIONS.reduce((acc, q) => {
+      acc[q.id] = null;
+      return acc;
+    }, {} as AnswerMap),
+  );
+  const [isLoading, setIsLoading] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [resultData, setResultData] = useState<any>(null);
 
   // Redirect if not a donor
   useEffect(() => {
     if (userType !== "donor") {
       Alert.alert("Access Denied", "This screen is only for donors", [
         { text: "OK", onPress: () => router.back() },
-      ])
+      ]);
     }
-  }, [userType])
+  }, [userType]);
 
   const handleAnswer = (questionId: string, isYes: boolean) => {
-    const newAnswers = { ...answers }
+    const newAnswers = { ...answers };
     // Store the actual user selection (true for Yes, false for No)
-    newAnswers[questionId] = isYes
-    setAnswers(newAnswers)
-  }
+    newAnswers[questionId] = isYes;
+    setAnswers(newAnswers);
+  };
 
   const handleCheckEligibility = async () => {
     // Check if all questions are answered
-    const unanswered = ELIGIBILITY_QUESTIONS.find((q) => answers[q.id] === null)
+    const unanswered = ELIGIBILITY_QUESTIONS.find(
+      (q) => answers[q.id] === null,
+    );
     if (unanswered) {
-      Alert.alert("Incomplete", "Please answer all questions before submitting.")
-      return
+      Alert.alert(
+        "Incomplete",
+        "Please answer all questions before submitting.",
+      );
+      return;
     }
 
-    await submitAnswers(answers)
-  }
+    await submitAnswers(answers);
+  };
 
   const submitAnswers = async (answersToSubmit: AnswerMap) => {
-    setIsLoading(true)
+    setIsLoading(true);
 
     try {
       const formattedAnswers = Object.keys(answersToSubmit).reduce(
         (acc, key) => {
-          acc[key] = answersToSubmit[key] ? "yes" : "no"
-          return acc
+          acc[key] = answersToSubmit[key] ? "yes" : "no";
+          return acc;
         },
-        {} as Record<string, string>
-      )
+        {} as Record<string, string>,
+      );
 
-      const token = await AsyncStorage.getItem("authToken")
-      const userId = await AsyncStorage.getItem("userId")
+      const token = await AsyncStorage.getItem("authToken");
+      const userId = await AsyncStorage.getItem("userId");
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-      }
+      };
 
       if (token) {
-        headers.Authorization = `Bearer ${token}`
+        headers.Authorization = `Bearer ${token}`;
       }
 
       const requestBody = {
         userId: userId ? parseInt(userId, 10) : undefined,
         answers: formattedAnswers,
-      }
+      };
 
-      console.log("🔍 Sending to:", API_ENDPOINTS.ELIGIBILITY_CHECK)
-      console.log("🔍 Headers:", headers)
-      console.log("🔍 Request body:", JSON.stringify(requestBody, null, 2))
+      console.log("🔍 Sending to:", API_ENDPOINTS.ELIGIBILITY_CHECK);
+      console.log("🔍 Headers:", headers);
+      console.log("🔍 Request body:", JSON.stringify(requestBody, null, 2));
 
       const response = await fetch(API_ENDPOINTS.ELIGIBILITY_CHECK, {
         method: "POST",
         headers,
         body: JSON.stringify(requestBody),
-      })
+      });
 
-      console.log("📡 Response status:", response.status)
+      console.log("📡 Response status:", response.status);
 
       if (!response.ok) {
         // Try to parse error message from JSON response
         try {
-          const errorData = await response.json()
-          console.log("❌ Error response:", errorData)
-          throw new Error(errorData.message || `Server error: ${response.status}`)
+          const errorData = await response.json();
+          console.log("❌ Error response:", errorData);
+          throw new Error(
+            errorData.message || `Server error: ${response.status}`,
+          );
         } catch (jsonError) {
           // If JSON parsing fails, throw status error
-          console.log("❌ Raw error:", response.status, response.statusText)
-          throw new Error(`Server error: ${response.status} ${response.statusText}`)
+          console.log("❌ Raw error:", response.status, response.statusText);
+          throw new Error(
+            `Server error: ${response.status} ${response.statusText}`,
+          );
         }
       }
 
-      const data = await response.json()
-      
+      const data = await response.json();
+
       // Update JWT token if provided in response
       if (data.token) {
-        await AsyncStorage.setItem("authToken", data.token)
-        console.log("✅ JWT token updated after eligibility check")
+        await AsyncStorage.setItem("authToken", data.token);
+        console.log("✅ JWT token updated after eligibility check");
       }
-      
-      setResultData(data)
-      setShowResult(true)
+
+      setResultData(data);
+      setShowResult(true);
     } catch (error: any) {
-      console.error("Eligibility check error:", error)
-      Alert.alert("Error", error.message || "Failed to check eligibility. Please try again.")
+      console.log("Eligibility check error:", error);
+      Alert.alert(
+        "Eligibility check failed",
+        getUserFriendlyError(
+          error,
+          "Failed to check eligibility. Please try again.",
+        ),
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   if (showResult && resultData) {
-    return <ResultScreen data={resultData} />
+    return <ResultScreen data={resultData} />;
   }
 
   return (
@@ -269,7 +297,10 @@ export default function EligibilityCheckScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
           <Ionicons name="chevron-back" size={28} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Eligibility Check</Text>
@@ -279,7 +310,7 @@ export default function EligibilityCheckScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* All Questions */}
         {ELIGIBILITY_QUESTIONS.map((question, index) => {
-          const selectedAnswer = answers[question.id]
+          const selectedAnswer = answers[question.id];
 
           return (
             <View key={question.id} style={styles.questionBlock}>
@@ -338,7 +369,7 @@ export default function EligibilityCheckScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          )
+          );
         })}
 
         {/* Submit Button */}
@@ -355,21 +386,27 @@ export default function EligibilityCheckScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
-  )
+  );
 }
 
 function ResultScreen({ data }: { data: any }) {
-  const router = useRouter()
+  const router = useRouter();
 
-  const isEligible = data.isEligible
-  const disqualifiers = data.disqualifiers || []
-  const softFlags = data.softFlags || []
+  const isEligible = data.isEligible;
+  const disqualifiers = data.disqualifiers || [];
+  const softFlags = data.softFlags || [];
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={isEligible ? "#27AE60" : "#C8102E"} />
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={isEligible ? "#27AE60" : "#C8102E"}
+      />
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.resultContent}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.resultContent}
+      >
         {/* Result Icon */}
         <View
           style={[
@@ -381,7 +418,12 @@ function ResultScreen({ data }: { data: any }) {
         </View>
 
         {/* Result Title */}
-        <Text style={[styles.resultTitle, { color: isEligible ? "#27AE60" : "#C8102E" }]}>
+        <Text
+          style={[
+            styles.resultTitle,
+            { color: isEligible ? "#27AE60" : "#C8102E" },
+          ]}
+        >
           {isEligible ? "You Are Eligible!" : "Not Eligible"}
         </Text>
 
@@ -423,9 +465,9 @@ function ResultScreen({ data }: { data: any }) {
           <View style={styles.infoBox}>
             <Text style={styles.infoTitle}>Next Steps</Text>
             <Text style={styles.infoText}>
-              Please consult with a healthcare professional to understand the reasons for
-              ineligibility. You may become eligible to donate in the future once certain
-              conditions are met.
+              Please consult with a healthcare professional to understand the
+              reasons for ineligibility. You may become eligible to donate in
+              the future once certain conditions are met.
             </Text>
           </View>
         )}
@@ -434,8 +476,8 @@ function ResultScreen({ data }: { data: any }) {
           <View style={styles.infoBox}>
             <Text style={styles.infoTitle}>What's Next?</Text>
             <Text style={styles.infoText}>
-              Your eligibility status has been saved. You can now schedule a blood donation
-              appointment at any authorized blood bank.
+              Your eligibility status has been saved. You can now schedule a
+              blood donation appointment at any authorized blood bank.
             </Text>
           </View>
         )}
@@ -444,22 +486,36 @@ function ResultScreen({ data }: { data: any }) {
       {/* Action Buttons */}
       <View style={styles.resultButtonContainer}>
         <TouchableOpacity
-          style={[styles.resultButton, isEligible ? styles.eligibleButton : styles.completeButton]}
-          onPress={() => router.replace(isEligible ? "/profile" : "/auth/register" as any)}
+          style={[
+            styles.resultButton,
+            isEligible ? styles.eligibleButton : styles.completeButton,
+          ]}
+          onPress={() =>
+            router.replace(isEligible ? "/profile" : ("/auth/register" as any))
+          }
           activeOpacity={0.8}
         >
           {isEligible ? (
             <View style={styles.buttonContent}>
-              <Text style={styles.resultButtonTextComplete}>Start Donation</Text>
-              <Ionicons name="arrow-forward" size={20} color="#fff" style={styles.arrowIcon} />
+              <Text style={styles.resultButtonTextComplete}>
+                Start Donation
+              </Text>
+              <Ionicons
+                name="arrow-forward"
+                size={20}
+                color="#fff"
+                style={styles.arrowIcon}
+              />
             </View>
           ) : (
-            <Text style={styles.resultButtonTextComplete}>Back to Registration</Text>
+            <Text style={styles.resultButtonTextComplete}>
+              Back to Registration
+            </Text>
           )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
-  )
+  );
 }
 
 function getCategoryColor(category: string): string {
@@ -468,8 +524,8 @@ function getCategoryColor(category: string): string {
     "Lifestyle & Risk Assessment": "#F39C12",
     "Physical Readiness": "#3498DB",
     "Hidden Red-Flags": "#9B59B6",
-  }
-  return colors[category] || "#C8102E"
+  };
+  return colors[category] || "#C8102E";
 }
 
 const styles = StyleSheet.create({
@@ -751,4 +807,4 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#FFFFFF",
   },
-})
+});

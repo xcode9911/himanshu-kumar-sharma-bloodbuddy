@@ -3,18 +3,20 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  useWindowDimensions,
+    Alert,
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+    useWindowDimensions,
 } from "react-native";
 import AddInventoryModal from "../../components/AddInventoryModal";
+import InventoryHistoryModal from "../../components/InventoryHistoryModal";
 import { API_ENDPOINTS } from "../../config/api";
 import { Fonts } from "../../constants/theme";
+import { getUserFriendlyError } from "../../utils/errorMessages";
 import { moderateScale, scale, verticalScale } from "../../utils/responsive";
 
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -37,7 +39,13 @@ export default function InventoryScreen() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [editingItem, setEditingItem] = useState<{ id: number; bloodType: string; units: number } | null>(null);
+  const [editingItem, setEditingItem] = useState<{
+    id: number;
+    bloodType: string;
+    units: number;
+  } | null>(null);
+  const [historyModalVisible, setHistoryModalVisible] = useState(false);
+  const [organizationName, setOrganizationName] = useState("");
 
   // Responsive logic
   const isDesktop = width >= 1024;
@@ -64,28 +72,29 @@ export default function InventoryScreen() {
 
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        const msg = (data && (data.message || data.error)) || "Failed to fetch inventory";
+        const msg =
+          (data && (data.message || data.error)) || "Failed to fetch inventory";
         throw new Error(msg);
       }
 
-      const list =
-        data?.inventory ||
-        data?.data ||
-        data?.items ||
-        data ||
-        [];
+      const list = data?.inventory || data?.data || data?.items || data || [];
+
+      setOrganizationName(data?.organizationName || "");
 
       const normalized = Array.isArray(list)
         ? list.map((it: any) => ({
-          id: it?.id || it?._id || Date.now() + Math.random(),
-          bloodType: it?.bloodType || it?.blood_group || it?.type,
-          units: Number(it?.units ?? it?.quantity ?? 0),
-        }))
+            id: it?.id || it?._id || Date.now() + Math.random(),
+            bloodType: it?.bloodType || it?.blood_group || it?.type,
+            units: Number(it?.units ?? it?.quantity ?? 0),
+          }))
         : [];
 
       setInventory(normalized);
     } catch (e: any) {
-      Alert.alert("Error", e?.message || "Failed to fetch inventory");
+      Alert.alert(
+        "Unable to load inventory",
+        getUserFriendlyError(e, "Failed to fetch inventory"),
+      );
       // keep existing inventory (fallback)
     } finally {
       setLoading(false);
@@ -96,7 +105,6 @@ export default function InventoryScreen() {
     fetchInventory();
   }, []);
 
-
   const handleAddInventorySuccess = async () => {
     setModalVisible(false);
     setUnits("");
@@ -105,7 +113,11 @@ export default function InventoryScreen() {
     await fetchInventory(); // Refresh list
   };
 
-  const handleDeleteInventory = async (item: { id: number; bloodType: string; units: number }) => {
+  const handleDeleteInventory = async (item: {
+    id: number;
+    bloodType: string;
+    units: number;
+  }) => {
     Alert.alert(
       "Delete Inventory",
       `Are you sure you want to delete ${item.bloodType} with ${item.units} units?`,
@@ -122,31 +134,43 @@ export default function InventoryScreen() {
                 return;
               }
 
-              const response = await fetch(API_ENDPOINTS.DELETE_INVENTORY(item.bloodType), {
-                method: "DELETE",
-                headers: {
-                  Authorization: `Bearer ${token}`,
+              const response = await fetch(
+                API_ENDPOINTS.DELETE_INVENTORY(item.bloodType),
+                {
+                  method: "DELETE",
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                  },
                 },
-              });
+              );
 
               const data = await response.json().catch(() => null);
               if (!response.ok) {
-                const msg = (data && (data.message || data.error)) || "Failed to delete inventory";
+                const msg =
+                  (data && (data.message || data.error)) ||
+                  "Failed to delete inventory";
                 throw new Error(msg);
               }
 
               setInventory((prev) => prev.filter((i) => i.id !== item.id));
               Alert.alert("Success", "Inventory deleted successfully");
             } catch (e: any) {
-              Alert.alert("Error", e?.message || "Failed to delete inventory");
+              Alert.alert(
+                "Delete failed",
+                getUserFriendlyError(e, "Failed to delete inventory"),
+              );
             }
           },
         },
-      ]
+      ],
     );
   };
 
-  const handleEditInventory = (item: { id: number; bloodType: string; units: number }) => {
+  const handleEditInventory = (item: {
+    id: number;
+    bloodType: string;
+    units: number;
+  }) => {
     setEditingItem(item);
     setBloodType(item.bloodType);
     setUnits(item.units.toString());
@@ -191,14 +215,22 @@ export default function InventoryScreen() {
               onPress={() => handleEditInventory(item)}
               activeOpacity={0.6}
             >
-              <Ionicons name="create-outline" size={moderateScale(20)} color="#007AFF" />
+              <Ionicons
+                name="create-outline"
+                size={moderateScale(20)}
+                color="#007AFF"
+              />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.deleteButton}
               onPress={() => handleDeleteInventory(item)}
               activeOpacity={0.6}
             >
-              <Ionicons name="trash-outline" size={moderateScale(20)} color="#FF3B30" />
+              <Ionicons
+                name="trash-outline"
+                size={moderateScale(20)}
+                color="#FF3B30"
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -217,7 +249,11 @@ export default function InventoryScreen() {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Ionicons name="search-outline" size={moderateScale(64)} color="#D1D5DB" />
+      <Ionicons
+        name="search-outline"
+        size={moderateScale(64)}
+        color="#D1D5DB"
+      />
       <Text style={styles.emptyStateTitle}>No inventory found</Text>
       <Text style={styles.emptyStateText}>
         {filter === "All"
@@ -237,7 +273,12 @@ export default function InventoryScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.contentContainer, { width: contentWidth, alignSelf: "center" }]}>
+      <View
+        style={[
+          styles.contentContainer,
+          { width: contentWidth, alignSelf: "center" },
+        ]}
+      >
         {/* Dropdown and Add Button Row */}
         <View style={styles.topRow}>
           <View style={styles.dropdownContainer}>
@@ -277,7 +318,11 @@ export default function InventoryScreen() {
                     All Blood Types
                   </Text>
                   {filter === "All" && (
-                    <Ionicons name="checkmark" size={moderateScale(20)} color="#FFFFFF" />
+                    <Ionicons
+                      name="checkmark"
+                      size={moderateScale(20)}
+                      color="#FFFFFF"
+                    />
                   )}
                 </TouchableOpacity>
                 {BLOOD_TYPES.map((type, index) => (
@@ -286,7 +331,8 @@ export default function InventoryScreen() {
                     style={[
                       styles.dropdownItem,
                       filter === type && styles.dropdownItemActive,
-                      index < BLOOD_TYPES.length - 1 && styles.dropdownItemBorder,
+                      index < BLOOD_TYPES.length - 1 &&
+                        styles.dropdownItemBorder,
                     ]}
                     onPress={() => {
                       setFilter(type);
@@ -302,7 +348,11 @@ export default function InventoryScreen() {
                       {type}
                     </Text>
                     {filter === type && (
-                      <Ionicons name="checkmark" size={moderateScale(20)} color="#FFFFFF" />
+                      <Ionicons
+                        name="checkmark"
+                        size={moderateScale(20)}
+                        color="#FFFFFF"
+                      />
                     )}
                   </TouchableOpacity>
                 ))}
@@ -310,6 +360,7 @@ export default function InventoryScreen() {
             )}
           </View>
           <TouchableOpacity
+            testID="addInventoryOpenButton"
             style={styles.redAddButton}
             onPress={() => {
               setEditingItem(null);
@@ -319,6 +370,18 @@ export default function InventoryScreen() {
             }}
           >
             <Ionicons name="add" size={moderateScale(28)} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.reportButton}
+            onPress={() => {
+              setHistoryModalVisible(true);
+            }}
+          >
+            <Ionicons
+              name="document-text-outline"
+              size={moderateScale(28)}
+              color="#fff"
+            />
           </TouchableOpacity>
         </View>
 
@@ -355,6 +418,12 @@ export default function InventoryScreen() {
           submitButtonText={editingItem ? "Update" : "Add"}
           isEditMode={!!editingItem}
           editingBloodType={editingItem?.bloodType}
+        />
+
+        <InventoryHistoryModal
+          visible={historyModalVisible}
+          onClose={() => setHistoryModalVisible(false)}
+          organizationName={organizationName}
         />
       </View>
     </View>
@@ -476,6 +545,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: moderateScale(1),
     borderColor: "#D11B31",
+    marginLeft: scale(12),
+  },
+  reportButton: {
+    backgroundColor: "#D11B31",
+    borderRadius: moderateScale(26),
+    width: moderateScale(50),
+    height: moderateScale(50),
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: moderateScale(2) },
+    shadowOpacity: 0.1,
+    shadowRadius: moderateScale(4),
+    elevation: 3,
     marginLeft: scale(12),
   },
   gridListContainer: {

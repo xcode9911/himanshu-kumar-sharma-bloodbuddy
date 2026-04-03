@@ -42,7 +42,7 @@ const ReceivedPaymentsModal = ({ visible, onClose }: ReceivedPaymentsModalProps)
                 setPayments(data.payments || []);
             }
         } catch (error) {
-            console.error("Error loading received payments:", error);
+            console.log("Error loading received payments:", error);
         } finally {
             setLoading(false);
         }

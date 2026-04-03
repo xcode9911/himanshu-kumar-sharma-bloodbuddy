@@ -1,80 +1,112 @@
-import { Ionicons } from "@expo/vector-icons"
-import AsyncStorage from "@react-native-async-storage/async-storage"
-import { useRouter } from "expo-router"
-import React, { useEffect, useState } from "react"
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native"
-import Navigation from "../../components/Navigation"
-import { API_ENDPOINTS } from "../../config/api"
-import { moderateScale, scale, verticalScale } from "../../utils/responsive"
+    ActivityIndicator,
+    FlatList,
+    Image,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import Navigation from "../../components/Navigation";
+import { API_BASE_URL, API_ENDPOINTS } from "../../config/api";
+import { moderateScale, scale, verticalScale } from "../../utils/responsive";
 
-type UserType = "gainer" | "donor" | "organization"
+type UserType = "gainer" | "donor" | "organization";
 
 interface Organization {
-  id: string
-  name: string
-  type: string
-  address: string
-  state: string
-  phone: string
-  email: string
-  bloodTypes: string[]
-  distance?: number
-  availableUnits?: number
+  id: string;
+  name: string;
+  type: string;
+  address: string;
+  state: string;
+  phone: string;
+  email: string;
+  bloodTypes: string[];
+  distance?: number;
+  availableUnits?: number;
+  profileImage?: any;
 }
 
 interface OrganizationScreenProps {
-  hideNavigation?: boolean
+  hideNavigation?: boolean;
 }
 
-export default function OrganizationScreen({ hideNavigation = false }: OrganizationScreenProps = {}) {
-  const router = useRouter()
-  const [organizations, setOrganizations] = useState<Organization[]>([])
-  const [filteredOrganizations, setFilteredOrganizations] = useState<Organization[]>([])
-  const [searchQuery, setSearchQuery] = useState("")
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [userType, setUserType] = useState<UserType>("donor")
-  const [activeCategory, setActiveCategory] = useState<"organizations" | "payments">("organizations")
-  const [payments, setPayments] = useState<any[]>([])
+const ORGANIZATIONS_PER_PAGE = 2;
+const PAYMENTS_PER_PAGE = 5;
+
+export default function OrganizationScreen({
+  hideNavigation = false,
+}: OrganizationScreenProps = {}) {
+  const router = useRouter();
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [filteredOrganizations, setFilteredOrganizations] = useState<
+    Organization[]
+  >([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [userType, setUserType] = useState<UserType>("donor");
+  const [activeCategory, setActiveCategory] = useState<
+    "organizations" | "payments"
+  >("organizations");
+  const [payments, setPayments] = useState<any[]>([]);
+  const [organizationPage, setOrganizationPage] = useState(1);
+  const [paymentPage, setPaymentPage] = useState(1);
+
+  const isDonorUser = userType === "donor";
+  const isPaymentsView = activeCategory === "payments" && !isDonorUser;
 
   useEffect(() => {
-    loadUserData()
-    if (activeCategory === "organizations") {
-      loadOrganizations()
-    } else {
-      loadPayments()
+    loadUserData();
+  }, []);
+
+  useEffect(() => {
+    if (isDonorUser && activeCategory === "payments") {
+      setActiveCategory("organizations");
+      return;
     }
-  }, [activeCategory])
+
+    if (activeCategory === "organizations") {
+      loadOrganizations();
+    } else {
+      loadPayments();
+    }
+  }, [activeCategory, isDonorUser]);
 
   const loadUserData = async () => {
     try {
-      const userData = await AsyncStorage.getItem("userData")
+      const userData = await AsyncStorage.getItem("userData");
       if (userData) {
-        const parsed = JSON.parse(userData)
-        setUserType(parsed.role || "donor")
+        const parsed = JSON.parse(userData);
+        setUserType((parsed.role || "donor").toLowerCase());
       }
     } catch (error) {
-      console.log("Error loading user data:", error)
+      console.log("Error loading user data:", error);
     }
-  }
+  };
 
   useEffect(() => {
-    filterOrganizations()
-  }, [searchQuery, organizations])
+    filterOrganizations();
+  }, [searchQuery, organizations]);
+
+  useEffect(() => {
+    setOrganizationPage(1);
+  }, [searchQuery, activeCategory]);
+
+  useEffect(() => {
+    setPaymentPage(1);
+  }, [activeCategory]);
 
   const loadOrganizations = async () => {
     try {
-      setLoading(true)
-      const token = await AsyncStorage.getItem("authToken")
+      setLoading(true);
+      const token = await AsyncStorage.getItem("authToken");
       // Start with empty to clear potentially stale data if needed, or keep to flicker less options
 
       const response = await fetch(API_ENDPOINTS.GET_ORGANIZATIONS, {
@@ -83,141 +115,184 @@ export default function OrganizationScreen({ hideNavigation = false }: Organizat
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-      })
+      });
 
-      const data = await response.json().catch(() => null)
+      const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        console.log("Failed to fetch organizations:", data)
+        console.log("Failed to fetch organizations:", data);
         // Fallback to empty if failed, or handle error
         // For now, just log it so we don't break the UI completely
       }
 
       // Handle different possible response structures
       const list =
-        data?.organizations ||
-        data?.data ||
-        (Array.isArray(data) ? data : [])
+        data?.organizations || data?.data || (Array.isArray(data) ? data : []);
 
       const normalized: Organization[] = Array.isArray(list)
         ? list.map((org: any) => {
-          const inventory = Array.isArray(org.inventory) ? org.inventory : []
-          const bloodTypes = inventory.map((item: any) => item.bloodType)
-          const totalUnits = inventory.reduce((sum: number, item: any) => sum + (Number(item.units) || 0), 0)
+            const inventory = Array.isArray(org.inventory) ? org.inventory : [];
+            const bloodTypes = inventory.map((item: any) => item.bloodType);
+            const totalUnits = inventory.reduce(
+              (sum: number, item: any) => sum + (Number(item.units) || 0),
+              0,
+            );
 
-          return {
-            id: String(org.organizationId || org.id || Math.random()),
-            name: org.organizationName || org.name || "Unknown Organization",
-            type: "Blood Bank",
-            address: org.location || org.address || "",
-            state: org.state || "",
-            phone: org.phone || org.contact || "",
-            email: org.email || "",
-            bloodTypes: bloodTypes,
-            distance: org.distance,
-            availableUnits: totalUnits
-          }
-        })
-        : []
+            return {
+              id: String(org.organizationId || org.id || Math.random()),
+              name: org.organizationName || org.name || "Unknown Organization",
+              type: "Blood Bank",
+              address: org.location || org.address || "",
+              state: org.state || "",
+              phone: org.phone || org.contact || "",
+              email: org.email || "",
+              bloodTypes: bloodTypes,
+              distance: org.distance,
+              availableUnits: totalUnits,
+              inventory: inventory,
+              profileImage: org.profileImage,
+            };
+          })
+        : [];
 
-      setOrganizations(normalized)
-      setFilteredOrganizations(normalized)
+      setOrganizations(normalized);
+      setFilteredOrganizations(normalized);
     } catch (error) {
-      console.error("Error loading organizations:", error)
+      console.log("Error loading organizations:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const onRefresh = async () => {
-    setRefreshing(true)
-    if (activeCategory === "organizations") {
-      await loadOrganizations()
+    setRefreshing(true);
+    if (isPaymentsView) {
+      await loadPayments();
     } else {
-      await loadPayments()
+      await loadOrganizations();
     }
-    setRefreshing(false)
-  }
+    setRefreshing(false);
+  };
 
   const loadPayments = async () => {
     try {
-      setLoading(true)
-      const token = await AsyncStorage.getItem("authToken")
-      if (!token) return
+      setLoading(true);
+      const token = await AsyncStorage.getItem("authToken");
+      if (!token) return;
 
       const response = await fetch(API_ENDPOINTS.GET_PAYMENT_HISTORY, {
         headers: { Authorization: `Bearer ${token}` },
-      })
-      const data = await response.json()
+      });
+      const data = await response.json();
       if (response.ok) {
-        setPayments(data.payments || [])
+        setPayments(data.payments || []);
       }
     } catch (error) {
-      console.error("Error loading payments:", error)
+      console.log("Error loading payments:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const filterOrganizations = () => {
     if (!searchQuery.trim()) {
-      setFilteredOrganizations(organizations)
-      return
+      setFilteredOrganizations(organizations);
+      return;
     }
 
-    const query = searchQuery.toLowerCase()
+    const query = searchQuery.toLowerCase();
     const filtered = organizations.filter(
       (org) =>
         org.name.toLowerCase().includes(query) ||
         org.type.toLowerCase().includes(query) ||
-        org.bloodTypes.some((type) => type.toLowerCase().includes(query))
-    )
-    setFilteredOrganizations(filtered)
-  }
+        org.bloodTypes.some((type) => type.toLowerCase().includes(query)),
+    );
+    setFilteredOrganizations(filtered);
+  };
 
   const getTypeColor = (type: string) => {
     switch (type.toLowerCase()) {
       case "blood bank":
-        return "#D11B31"
+        return "#D11B31";
       case "hospital":
-        return "#2563EB"
+        return "#2563EB";
       case "non-profit":
-        return "#059669"
+        return "#059669";
       case "community center":
-        return "#7C3AED"
+        return "#7C3AED";
       default:
-        return "#6B7280"
+        return "#6B7280";
     }
-  }
+  };
 
   const renderOrganizationCard = ({ item }: { item: Organization }) => (
     <TouchableOpacity
+      testID="orgCard"
       style={styles.card}
       activeOpacity={0.7}
-      onPress={() => router.push({
-        pathname: "/organization/[id]",
-        params: {
-          id: item.id,
-          name: item.name,
-          address: item.address,
-          phone: item.phone,
-          email: item.email,
-          availableUnits: item.availableUnits,
-          bloodTypes: JSON.stringify(item.bloodTypes)
-        }
-      })}
+      onPress={() => {
+        const logoUrl =
+          typeof item.profileImage === "string"
+            ? item.profileImage
+            : item.profileImage?.path
+              ? `${API_BASE_URL}/${item.profileImage.path.replace(/\\/g, "/")}`
+              : "";
+
+        router.push({
+          pathname: "/organization/[id]",
+          params: {
+            id: item.id,
+            name: item.name,
+            address: item.address,
+            phone: item.phone,
+            email: item.email,
+            logoUrl,
+            availableUnits: item.availableUnits,
+            bloodTypes: JSON.stringify(item.bloodTypes),
+            inventory: JSON.stringify((item as any).inventory || []),
+          },
+        });
+      }}
     >
       <View style={styles.cardHeader}>
         <View style={styles.cardHeaderLeft}>
-          <View style={[styles.iconContainer, { backgroundColor: `${getTypeColor(item.type)}20` }]}>
-            <Ionicons name="business" size={24} color={getTypeColor(item.type)} />
+          <View
+            style={[
+              styles.iconContainer,
+              {
+                backgroundColor: `${getTypeColor(item.type)}20`,
+                overflow: "hidden",
+              },
+            ]}
+          >
+            {item.profileImage ? (
+              <Image
+                source={{
+                  uri:
+                    typeof item.profileImage === "string"
+                      ? item.profileImage
+                      : `${API_BASE_URL}/${item.profileImage.path.replace(/\\/g, "/")}`,
+                }}
+                style={{ width: "100%", height: "100%", resizeMode: "cover" }}
+              />
+            ) : (
+              <Ionicons
+                name="business"
+                size={24}
+                color={getTypeColor(item.type)}
+              />
+            )}
           </View>
           <View style={styles.cardHeaderText}>
             <Text style={styles.organizationName} numberOfLines={1}>
               {item.name}
             </Text>
             <View style={styles.typeContainer}>
-              <Text style={[styles.typeText, { color: getTypeColor(item.type) }]}>{item.type}</Text>
+              <Text
+                style={[styles.typeText, { color: getTypeColor(item.type) }]}
+              >
+                {item.type}
+              </Text>
             </View>
           </View>
         </View>
@@ -275,57 +350,154 @@ export default function OrganizationScreen({ hideNavigation = false }: Organizat
         )}
       </View>
     </TouchableOpacity>
-  )
+  );
 
-  const renderPaymentCard = ({ item }: { item: any }) => (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.cardHeaderLeft}>
-          <View style={[styles.iconContainer, { backgroundColor: "#6366F120" }]}>
-            <Ionicons name="card" size={24} color="#D11B31" />
+  const renderPaymentCard = ({ item }: { item: any }) => {
+    const provider = item.Provider?.toLowerCase() || "";
+
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderLeft}>
+            <View
+              style={[
+                styles.iconContainer,
+                {
+                  backgroundColor:
+                    provider === "khalti"
+                      ? "#5C2D9120"
+                      : provider === "esewa"
+                        ? "#60BB4620"
+                        : "#6366F120",
+                },
+              ]}
+            >
+              {provider === "khalti" ? (
+                <Image
+                  source={require("../../assets/images/khalti-logo.png")}
+                  style={{ width: 24, height: 24, resizeMode: "contain" }}
+                />
+              ) : provider === "esewa" ? (
+                <Image
+                  source={require("../../assets/images/esewa-logo.png")}
+                  style={{ width: 24, height: 24, resizeMode: "contain" }}
+                />
+              ) : (
+                <Ionicons name="card" size={24} color="#D11B31" />
+              )}
+            </View>
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.organizationName} numberOfLines={1}>
+                {item.request?.organization?.OrganizationName ||
+                  "Blood Payment"}
+              </Text>
+              <Text style={styles.typeText}>{item.Provider} Payment</Text>
+            </View>
           </View>
-          <View style={styles.cardHeaderText}>
-            <Text style={styles.organizationName} numberOfLines={1}>
-              {item.request?.organization?.OrganizationName || "Blood Payment"}
+          <View style={styles.statusBadge}>
+            <Text style={[styles.statusText, { color: "#059669" }]}>
+              ₹{item.Amount}
             </Text>
-            <Text style={styles.typeText}>{item.Provider} Payment</Text>
           </View>
         </View>
-        <View style={styles.statusBadge}>
-          <Text style={[styles.statusText, { color: "#059669" }]}>₹{item.Amount}</Text>
+        <View style={styles.divider} />
+        <View style={styles.cardBody}>
+          <View style={styles.infoRow}>
+            <Ionicons name="receipt-outline" size={18} color="#6B7280" />
+            <Text style={styles.infoText}>Payment ID: {item.PaymentId}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Ionicons name="calendar-outline" size={18} color="#6B7280" />
+            <Text style={styles.infoText}>
+              {new Date(item.PaymentDate).toLocaleDateString()} at{" "}
+              {new Date(item.PaymentDate).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Ionicons name="water-outline" size={18} color="#6B7280" />
+            <Text style={styles.infoText}>
+              {item.request?.BloodType} - {item.request?.Units} units
+            </Text>
+          </View>
         </View>
       </View>
-      <View style={styles.divider} />
-      <View style={styles.cardBody}>
-        <View style={styles.infoRow}>
-          <Ionicons name="receipt-outline" size={18} color="#6B7280" />
-          <Text style={styles.infoText}>Payment ID: {item.PaymentId}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Ionicons name="calendar-outline" size={18} color="#6B7280" />
-          <Text style={styles.infoText}>
-            {new Date(item.PaymentDate).toLocaleDateString()} at {new Date(item.PaymentDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Ionicons name="water-outline" size={18} color="#6B7280" />
-          <Text style={styles.infoText}>
-            {item.request?.BloodType} - {item.request?.Units} units
-          </Text>
-        </View>
-      </View>
-    </View>
-  )
+    );
+  };
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <Ionicons name="search-outline" size={64} color="#D1D5DB" />
-      <Text style={styles.emptyStateTitle}>No organizations found</Text>
+      <Text style={styles.emptyStateTitle}>
+        {isPaymentsView ? "No payments found" : "No organizations found"}
+      </Text>
       <Text style={styles.emptyStateText}>
-        {searchQuery ? "Try adjusting your search" : "No organizations available"}
+        {isPaymentsView
+          ? "No payment records are available"
+          : searchQuery
+            ? "Try adjusting your search"
+            : "No organizations available"}
       </Text>
     </View>
-  )
+  );
+
+  const organizationTotalPages = Math.max(
+    1,
+    Math.ceil(filteredOrganizations.length / ORGANIZATIONS_PER_PAGE),
+  );
+  const paymentTotalPages = Math.max(
+    1,
+    Math.ceil(payments.length / PAYMENTS_PER_PAGE),
+  );
+
+  useEffect(() => {
+    setOrganizationPage((prev) => Math.min(prev, organizationTotalPages));
+  }, [organizationTotalPages]);
+
+  useEffect(() => {
+    setPaymentPage((prev) => Math.min(prev, paymentTotalPages));
+  }, [paymentTotalPages]);
+
+  const paginatedOrganizations = useMemo(() => {
+    const start = (organizationPage - 1) * ORGANIZATIONS_PER_PAGE;
+    return filteredOrganizations.slice(start, start + ORGANIZATIONS_PER_PAGE);
+  }, [filteredOrganizations, organizationPage]);
+
+  const paginatedPayments = useMemo(() => {
+    const start = (paymentPage - 1) * PAYMENTS_PER_PAGE;
+    return payments.slice(start, start + PAYMENTS_PER_PAGE);
+  }, [payments, paymentPage]);
+
+  const listData = isPaymentsView ? paginatedPayments : paginatedOrganizations;
+  const totalItems = isPaymentsView
+    ? payments.length
+    : filteredOrganizations.length;
+  const totalPages = isPaymentsView
+    ? paymentTotalPages
+    : organizationTotalPages;
+  const currentPage = isPaymentsView ? paymentPage : organizationPage;
+  const perPage = isPaymentsView ? PAYMENTS_PER_PAGE : ORGANIZATIONS_PER_PAGE;
+  const showPagination = totalItems > perPage;
+
+  const handleNextPage = () => {
+    if (isPaymentsView) {
+      setPaymentPage((prev) => Math.min(prev + 1, paymentTotalPages));
+      return;
+    }
+
+    setOrganizationPage((prev) => Math.min(prev + 1, organizationTotalPages));
+  };
+
+  const handlePreviousPage = () => {
+    if (isPaymentsView) {
+      setPaymentPage((prev) => Math.max(prev - 1, 1));
+      return;
+    }
+
+    setOrganizationPage((prev) => Math.max(prev - 1, 1));
+  };
 
   if (loading) {
     return (
@@ -333,7 +505,7 @@ export default function OrganizationScreen({ hideNavigation = false }: Organizat
         <ActivityIndicator size="large" color="#D11B31" />
         <Text style={styles.loadingText}>Loading organizations...</Text>
       </View>
-    )
+    );
   }
 
   return (
@@ -352,67 +524,128 @@ export default function OrganizationScreen({ hideNavigation = false }: Organizat
             returnKeyType="search"
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <TouchableOpacity
+              onPress={() => setSearchQuery("")}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Ionicons name="close-circle" size={20} color="#9CA3AF" />
             </TouchableOpacity>
           )}
         </View>
 
-        <View style={styles.categoryToggleContainer}>
-          <TouchableOpacity
-            style={[styles.categoryTab, activeCategory === "organizations" && styles.activeCategoryTab]}
-            onPress={() => setActiveCategory("organizations")}
-          >
-            <Text
+        {!isDonorUser && (
+          <View style={styles.categoryToggleContainer}>
+            <TouchableOpacity
               style={[
-                styles.categoryTabText,
-                activeCategory === "organizations" && styles.activeCategoryTabText,
+                styles.categoryTab,
+                activeCategory === "organizations" && styles.activeCategoryTab,
               ]}
+              onPress={() => setActiveCategory("organizations")}
             >
-              Organizations
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.categoryTab, activeCategory === "payments" && styles.activeCategoryTab]}
-            onPress={() => setActiveCategory("payments")}
-          >
-            <Text
+              <Text
+                style={[
+                  styles.categoryTabText,
+                  activeCategory === "organizations" &&
+                    styles.activeCategoryTabText,
+                ]}
+              >
+                Organizations
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[
-                styles.categoryTabText,
-                activeCategory === "payments" && styles.activeCategoryTabText,
+                styles.categoryTab,
+                activeCategory === "payments" && styles.activeCategoryTab,
               ]}
+              onPress={() => setActiveCategory("payments")}
             >
-              Payments
-            </Text>
-          </TouchableOpacity>
-        </View>
+              <Text
+                style={[
+                  styles.categoryTabText,
+                  activeCategory === "payments" && styles.activeCategoryTabText,
+                ]}
+              >
+                Payments
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.resultsHeader}>
           <Text style={styles.resultsCount}>
-            {filteredOrganizations.length} {filteredOrganizations.length === 1 ? "Organization" : "Organizations"}
+            {isPaymentsView
+              ? `${payments.length} ${payments.length === 1 ? "Payment" : "Payments"}`
+              : `${filteredOrganizations.length} ${
+                  filteredOrganizations.length === 1
+                    ? "Organization"
+                    : "Organizations"
+                }`}
           </Text>
-          <TouchableOpacity style={styles.filterButton}>
-            <Ionicons name="options" size={20} color="#6B7280" />
-            <Text style={styles.filterText}>Filter</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
       {/* List content based on category */}
       <FlatList
-        data={activeCategory === "organizations" ? filteredOrganizations : payments}
-        renderItem={activeCategory === "organizations" ? renderOrganizationCard : renderPaymentCard}
-        keyExtractor={(item: any) => (activeCategory === "organizations" ? item.id : String(item.PaymentId))}
+        data={listData}
+        renderItem={isPaymentsView ? renderPaymentCard : renderOrganizationCard}
+        keyExtractor={(item: any) =>
+          isPaymentsView ? String(item.PaymentId) : item.id
+        }
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={renderEmptyState}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#D11B31"]} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#D11B31"]}
+          />
+        }
       />
 
+      {showPagination && (
+        <View
+          style={[
+            styles.paginationContainer,
+            !hideNavigation && { marginBottom: verticalScale(86) },
+          ]}
+        >
+          <TouchableOpacity
+            style={[
+              styles.paginationButton,
+              currentPage <= 1 && styles.paginationButtonDisabled,
+            ]}
+            onPress={handlePreviousPage}
+            disabled={currentPage <= 1}
+          >
+            <Ionicons name="chevron-back" size={18} color="#D11B31" />
+            <Text style={styles.paginationButtonText}>Previous</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.paginationInfo}>
+            Page {currentPage} of {totalPages}
+          </Text>
+
+          <TouchableOpacity
+            style={[
+              styles.paginationButton,
+              currentPage >= totalPages && styles.paginationButtonDisabled,
+            ]}
+            onPress={handleNextPage}
+            disabled={currentPage >= totalPages}
+          >
+            <Text style={styles.paginationButtonText}>Next</Text>
+            <Ionicons name="chevron-forward" size={18} color="#D11B31" />
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Navigation Bar - only show if not hidden */}
-      {!hideNavigation && <Navigation userType={userType} initialTab="organization" />}
+      {!hideNavigation && (
+        <Navigation userType={userType} initialTab="organization" />
+      )}
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -457,7 +690,7 @@ const styles = StyleSheet.create({
   },
   resultsHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "center",
     alignItems: "center",
     marginTop: verticalScale(12),
   },
@@ -465,22 +698,43 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(14),
     color: "#6B7280",
     fontWeight: "500",
-  },
-  filterButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: scale(4),
-    paddingVertical: verticalScale(4),
-    paddingHorizontal: scale(8),
-  },
-  filterText: {
-    fontSize: moderateScale(14),
-    color: "#6B7280",
-    fontWeight: "500",
+    textAlign: "center",
   },
   listContainer: {
     padding: scale(16),
     paddingBottom: verticalScale(100),
+  },
+  paginationContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: scale(16),
+    paddingVertical: verticalScale(10),
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+  },
+  paginationButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scale(4),
+    paddingVertical: verticalScale(8),
+    paddingHorizontal: scale(10),
+    borderRadius: moderateScale(10),
+    backgroundColor: "#FEE2E2",
+  },
+  paginationButtonDisabled: {
+    opacity: 0.45,
+  },
+  paginationButtonText: {
+    fontSize: moderateScale(13),
+    fontWeight: "700",
+    color: "#D11B31",
+  },
+  paginationInfo: {
+    fontSize: moderateScale(13),
+    color: "#6B7280",
+    fontWeight: "600",
   },
   card: {
     backgroundColor: "#FFFFFF",
@@ -670,4 +924,4 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(12),
     fontWeight: "700",
   },
-})
+});

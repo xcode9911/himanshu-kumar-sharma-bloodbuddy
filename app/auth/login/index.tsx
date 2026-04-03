@@ -1,49 +1,60 @@
-import { Ionicons } from "@expo/vector-icons"
-import AsyncStorage from "@react-native-async-storage/async-storage"
-import { useRouter } from "expo-router"
-import { useState } from "react"
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native"
-import { API_ENDPOINTS } from "../../../config/api"
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import { useState } from "react";
+import {
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { API_ENDPOINTS } from "../../../config/api";
+import { getUserFriendlyError } from "../../../utils/errorMessages";
 
 export default function LoginScreen() {
-  const router = useRouter()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [emailError, setEmailError] = useState<string | null>(null)
-  const [passwordError, setPasswordError] = useState<string | null>(null)
-  const [emailTouched, setEmailTouched] = useState(false)
-  const [passwordTouched, setPasswordTouched] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const validateEmail = (val: string): string | null => {
-    const trimmed = val.trim()
-    if (!trimmed) return "Email is required"
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!re.test(trimmed)) return "Enter a valid email address"
-    return null
-  }
+    const trimmed = val.trim();
+    if (!trimmed) return "Email is required";
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!re.test(trimmed)) return "Enter a valid email address";
+    return null;
+  };
 
   const validatePassword = (val: string): string | null => {
-    if (!val) return "Password is required"
-    if (val.length < 6) return "Password must be at least 6 characters"
-    return null
-  }
+    if (!val) return "Password is required";
+    if (val.length < 6) return "Password must be at least 6 characters";
+    return null;
+  };
 
   const handleLogin = async () => {
     // Validate inputs
-    const emailErr = validateEmail(email)
-    const passwordErr = validatePassword(password)
-    setEmailTouched(true)
-    setPasswordTouched(true)
-    setEmailError(emailErr)
-    setPasswordError(passwordErr)
+    const emailErr = validateEmail(email);
+    const passwordErr = validatePassword(password);
+    setEmailTouched(true);
+    setPasswordTouched(true);
+    setEmailError(emailErr);
+    setPasswordError(passwordErr);
     if (emailErr || passwordErr) {
-      Alert.alert("Invalid input", "Please fix the errors in the form")
-      return
+      Alert.alert("Invalid input", "Please fix the errors in the form");
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
 
     try {
       const response = await fetch(API_ENDPOINTS.LOGIN, {
@@ -55,58 +66,75 @@ export default function LoginScreen() {
           email,
           password,
         }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Login failed. Please check your credentials.")
+        throw new Error(
+          data.message || "Login failed. Please check your credentials.",
+        );
       }
 
       // Store JWT token and user data
       if (data.token) {
-        await AsyncStorage.setItem("authToken", data.token)
+        await AsyncStorage.setItem("authToken", data.token);
       }
 
       // Store user data (handle different response structures)
-      const userData = data.user || data.data || data
-      const role = userData.role || userData.type || userData.userType || null
+      const userData = data.user || data.data || data;
+      const role = userData.role || userData.type || userData.userType || null;
 
       // Extract blood type from nested donor object if available
-      let bloodType = userData.bloodType
+      let bloodType = userData.bloodType;
       if (!bloodType && userData.donor) {
-        bloodType = userData.donor.bloodType
+        bloodType = userData.donor.bloodType;
       }
 
       // For donors without blood type in response, use a default
       // This will be properly set when user updates their profile
-      if (role === 'donor' && !bloodType) {
-        bloodType = 'O+' // Default blood type for new donors
+      if (role === "donor" && !bloodType) {
+        bloodType = "O+"; // Default blood type for new donors
       }
 
-      await AsyncStorage.setItem("userData", JSON.stringify({
-        id: userData.id || userData._id || userData.userId,
-        fullName: userData.fullName || userData.name,
-        email: userData.email,
-        role,
-        phone: userData.phone || userData.phoneNumber,
-        bloodType: bloodType || null,
-        location: userData.location || userData.donor?.location || null,
-        address: userData.address || userData.gainer?.address || null,
-        organizationName: userData.organizationName || userData.organization?.organizationName || null,
-        eligibilityStatus: userData.eligibilityStatus || userData.donor?.eligibilityStatus || null,
-        lastDonationDate: userData.lastDonationDate || userData.donor?.lastDonationDate || null,
-      }))
+      await AsyncStorage.setItem(
+        "userData",
+        JSON.stringify({
+          id: userData.id || userData._id || userData.userId,
+          fullName: userData.fullName || userData.name,
+          email: userData.email,
+          role,
+          phone: userData.phone || userData.phoneNumber,
+          bloodType: bloodType || null,
+          location: userData.location || userData.donor?.location || null,
+          address: userData.address || userData.gainer?.address || null,
+          organizationName:
+            userData.organizationName ||
+            userData.organization?.organizationName ||
+            null,
+          eligibilityStatus:
+            userData.eligibilityStatus ||
+            userData.donor?.eligibilityStatus ||
+            null,
+          lastDonationDate:
+            userData.lastDonationDate ||
+            userData.donor?.lastDonationDate ||
+            null,
+        }),
+      );
 
       // Login successful - navigate based on role
-      router.replace("/navigation" as any)
+      router.replace("/navigation" as any);
     } catch (error: any) {
-      console.error("Login error:", error)
-      Alert.alert("Error", error.message || "Failed to login. Please try again.")
+      console.log("Login error:", error);
+      Alert.alert(
+        "Login failed",
+        getUserFriendlyError(error, "Failed to login. Please try again."),
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -114,12 +142,13 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       {/* ---- Header with Curved Bubble Design ---- */}
-      <View style={styles.headerSection}>
+      <View style={styles.headerSection} pointerEvents="none">
         <View style={styles.circle1} />
         <View style={styles.circle2} />
       </View>
 
       <ScrollView
+        testID="loginScrollView"
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
@@ -127,13 +156,15 @@ export default function LoginScreen() {
       >
         <View style={styles.contentWrapper}>
           <View style={styles.welcomeSection}>
-            <Text style={styles.welcomeText}>Welcome</Text>
+            <Text testID="welcomeText" style={styles.welcomeText}>
+              Welcome
+            </Text>
             <Text style={styles.backToText}>Back to</Text>
             <Text style={styles.bloodbuddyText}>BloodBuddy!</Text>
 
             <Text style={styles.quoteText}>
-              "Your role matters — whether you're a donor, a gainer, or an organization, every login brings hope to
-              someone in need."
+              "Your role matters — whether you're a donor, a gainer, or an
+              organization, every login brings hope to someone in need."
             </Text>
           </View>
         </View>
@@ -142,63 +173,98 @@ export default function LoginScreen() {
         <View style={styles.formContainer}>
           <Text style={styles.label}>Email:</Text>
           <TextInput
-            style={[styles.input, emailTouched && emailError ? styles.inputError : null]}
+            testID="emailInput"
+            style={[
+              styles.input,
+              emailTouched && emailError ? styles.inputError : null,
+            ]}
             placeholder="Enter your email"
             placeholderTextColor="#9B7B7F"
             value={email}
             onChangeText={(text) => {
-              setEmail(text)
-              if (emailTouched) setEmailError(validateEmail(text))
+              setEmail(text);
+              if (emailTouched) setEmailError(validateEmail(text));
             }}
             keyboardType="email-address"
             autoCapitalize="none"
             onBlur={() => {
-              setEmailTouched(true)
-              setEmailError(validateEmail(email))
+              setEmailTouched(true);
+              setEmailError(validateEmail(email));
             }}
           />
-          {emailTouched && !!emailError && <Text style={styles.errorText}>{emailError}</Text>}
+          {emailTouched && !!emailError && (
+            <Text style={styles.errorText}>{emailError}</Text>
+          )}
 
           <Text style={styles.label}>Password:</Text>
           <View style={styles.inputWithIcon}>
             <TextInput
-              style={[styles.input, styles.inputFlex, passwordTouched && passwordError ? styles.inputError : null]}
+              testID="passwordInput"
+              style={[
+                styles.input,
+                styles.inputFlex,
+                passwordTouched && passwordError ? styles.inputError : null,
+              ]}
               placeholder="Enter your password"
               placeholderTextColor="#9B7B7F"
               value={password}
               onChangeText={(text) => {
-                setPassword(text)
-                if (passwordTouched) setPasswordError(validatePassword(text))
+                setPassword(text);
+                if (passwordTouched) setPasswordError(validatePassword(text));
               }}
               secureTextEntry={!showPassword}
               onBlur={() => {
-                setPasswordTouched(true)
-                setPasswordError(validatePassword(password))
+                setPasswordTouched(true);
+                setPasswordError(validatePassword(password));
               }}
             />
             <TouchableOpacity
               style={styles.eyeButton}
               onPress={() => setShowPassword((prev) => !prev)}
-              accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+              accessibilityLabel={
+                showPassword ? "Hide password" : "Show password"
+              }
             >
-              <Ionicons name={showPassword ? "eye" : "eye-off"} size={20} color="#6b7280" />
+              <Ionicons
+                name={showPassword ? "eye" : "eye-off"}
+                size={20}
+                color="#6b7280"
+              />
             </TouchableOpacity>
           </View>
-          {passwordTouched && !!passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
+          {passwordTouched && !!passwordError && (
+            <Text style={styles.errorText}>{passwordError}</Text>
+          )}
 
           {/* Forgot Password Link */}
           <View style={styles.forgotContainer}>
-            <TouchableOpacity onPress={() => router.push("/auth/forgot-password" as any)}>
+            <TouchableOpacity
+              testID="forgotPasswordLink"
+              onPress={() => router.push("/auth/forgot-password" as any)}
+            >
               <Text style={styles.forgotLink}>Forgot password?</Text>
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity
-            style={[styles.loginButton, (isLoading || validateEmail(email) || validatePassword(password)) && styles.loginButtonDisabled]}
+            testID="loginButton"
+            style={[
+              styles.loginButton,
+              (isLoading ||
+                validateEmail(email) ||
+                validatePassword(password)) &&
+                styles.loginButtonDisabled,
+            ]}
             onPress={handleLogin}
-            disabled={isLoading || !!validateEmail(email) || !!validatePassword(password)}
+            disabled={
+              isLoading ||
+              !!validateEmail(email) ||
+              !!validatePassword(password)
+            }
           >
-            <Text style={styles.loginButtonText}>{isLoading ? "Logging in..." : "Login"}</Text>
+            <Text style={styles.loginButtonText}>
+              {isLoading ? "Logging in..." : "Login"}
+            </Text>
           </TouchableOpacity>
 
           <View style={styles.registerContainer}>
@@ -210,7 +276,7 @@ export default function LoginScreen() {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -219,10 +285,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   headerSection: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     height: 90,
     backgroundColor: "transparent",
     overflow: "visible",
-    position: "relative",
     zIndex: 1,
   },
   circle1: {
@@ -265,10 +334,11 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    zIndex: 5,
   },
   contentContainer: {
     paddingHorizontal: 24,
-    paddingTop: 100,
+    paddingTop: 190,
     paddingBottom: 40,
     flexGrow: 1,
   },
@@ -400,4 +470,4 @@ const styles = StyleSheet.create({
     color: "#D11B31",
     fontWeight: "600",
   },
-})
+});

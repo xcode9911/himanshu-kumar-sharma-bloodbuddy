@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   RefreshControl,
   StyleSheet,
   Text,
@@ -30,6 +31,7 @@ interface Contact {
   isOnline: boolean
   role: string
   organizationName?: string | null
+  profileImage?: any
 }
 
 interface ChatScreenProps {
@@ -150,7 +152,7 @@ export default function ChatScreen({ hideNavigation = false }: ChatScreenProps =
       const contentType = response.headers.get("content-type")
       if (!contentType || !contentType.includes("application/json")) {
         const text = await response.text()
-        console.error("Non-JSON response received:", text.slice(0, 100))
+        console.log("Non-JSON response received:", text.slice(0, 100))
         throw new Error("Invalid server response")
       }
 
@@ -165,7 +167,8 @@ export default function ChatScreen({ hideNavigation = false }: ChatScreenProps =
           timestamp: u.lastMessageTime ? new Date(u.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
           unread: u.unreadCount,
           isOnline: u.isOnline || false,
-          organizationName: u.organizationName
+          organizationName: u.organizationName,
+          profileImage: u.profileImage
         })
 
         if (userType === "donor") {
@@ -183,7 +186,7 @@ export default function ChatScreen({ hideNavigation = false }: ChatScreenProps =
         }
       }
     } catch (error) {
-      console.error("Error loading contacts:", error)
+      console.log("Error loading contacts:", error)
     } finally {
       setLoading(false)
     }
@@ -204,7 +207,7 @@ export default function ChatScreen({ hideNavigation = false }: ChatScreenProps =
         setIsProfileModalVisible(true)
       }
     } catch (error) {
-      console.error("Error fetching profile:", error)
+      console.log("Error fetching profile:", error)
     } finally {
       setIsProfileLoading(false)
     }
@@ -270,9 +273,16 @@ export default function ChatScreen({ hideNavigation = false }: ChatScreenProps =
       <View style={styles.cardContent}>
         <TouchableOpacity
           onPress={() => handleShowProfile(item.id)}
-          style={[styles.avatarContainer, { backgroundColor: getAvatarColor(index) }]}
+          style={[styles.avatarContainer, { backgroundColor: item.profileImage ? 'transparent' : getAvatarColor(index) }]}
         >
-          <Text style={styles.avatarText}>{getInitials(item.organizationName || item.name)}</Text>
+          {item.profileImage ? (
+             <Image 
+               source={{ uri: typeof item.profileImage === 'string' ? item.profileImage : `${API_BASE_URL}/${item.profileImage.path}` }}
+               style={styles.avatarImage}
+             />
+          ) : (
+             <Text style={styles.avatarText}>{getInitials(item.organizationName || item.name)}</Text>
+          )}
           {item.isOnline && <View style={styles.avatarOnlineDot} />}
         </TouchableOpacity>
 
@@ -535,6 +545,11 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(18),
     fontWeight: "700",
     color: "#FFFFFF",
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: moderateScale(28),
   },
   contactInfo: {
     flex: 1,

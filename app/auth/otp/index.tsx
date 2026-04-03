@@ -1,73 +1,86 @@
-import { Ionicons } from "@expo/vector-icons"
-import AsyncStorage from "@react-native-async-storage/async-storage"
-import { useLocalSearchParams, useRouter } from "expo-router"
-import { useRef, useState } from "react"
-import { Alert, Image, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native"
-import { API_ENDPOINTS } from "../../../config/api"
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRef, useState } from "react";
+import {
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { API_ENDPOINTS } from "../../../config/api";
+import { getUserFriendlyError } from "../../../utils/errorMessages";
 
 export default function OTPScreen() {
-  const router = useRouter()
-  const { email: emailParam, userType: userTypeParam } = useLocalSearchParams<{ email?: string; userType?: string }>()
-  const [email] = useState<string>(typeof emailParam === "string" ? emailParam : "")
-  const [userType] = useState<string>(typeof userTypeParam === "string" ? userTypeParam : "")
-  const [otp, setOtp] = useState<string[]>(["", "", "", "", ""]) // 5-digit OTP
-  const [isVerifying, setIsVerifying] = useState(false)
-  const [isResending, setIsResending] = useState(false)
-  const [otpTouched, setOtpTouched] = useState(false)
-  const [otpError, setOtpError] = useState<string | null>(null)
-  const otpInputRefs = useRef<Array<TextInput | null>>([])
+  const router = useRouter();
+  const { email: emailParam } = useLocalSearchParams<{ email?: string }>();
+  const [email] = useState<string>(
+    typeof emailParam === "string" ? emailParam : "",
+  );
+  const [otp, setOtp] = useState<string[]>(["", "", "", "", ""]); // 5-digit OTP
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [otpTouched, setOtpTouched] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const otpInputRefs = useRef<Array<TextInput | null>>([]);
 
   const validateOtp = (): string | null => {
-    const otpString = otp.join("")
-    if (!otpString) return "OTP is required"
-    if (otpString.length !== 5) return "OTP must be 5 digits"
-    if (!/^\d{5}$/.test(otpString)) return "OTP must contain only numbers"
-    return null
-  }
+    const otpString = otp.join("");
+    if (!otpString) return "OTP is required";
+    if (otpString.length !== 5) return "OTP must be 5 digits";
+    if (!/^\d{5}$/.test(otpString)) return "OTP must contain only numbers";
+    return null;
+  };
 
   const handleOTPChange = (value: string, index: number) => {
     if (value.length > 1) {
-      const digits = value.slice(0, 5).split("")
-      const newOtp = [...otp]
+      const digits = value.slice(0, 5).split("");
+      const newOtp = [...otp];
       digits.forEach((digit, i) => {
         if (index + i < 5) {
-          newOtp[index + i] = digit
+          newOtp[index + i] = digit;
         }
-      })
-      setOtp(newOtp)
-      const lastIndex = Math.min(index + digits.length - 1, 4)
-      otpInputRefs.current[lastIndex]?.focus()
+      });
+      setOtp(newOtp);
+      const lastIndex = Math.min(index + digits.length - 1, 4);
+      otpInputRefs.current[lastIndex]?.focus();
     } else {
-      const newOtp = [...otp]
-      newOtp[index] = value
-      setOtp(newOtp)
+      const newOtp = [...otp];
+      newOtp[index] = value;
+      setOtp(newOtp);
       if (value && index < 4) {
-        otpInputRefs.current[index + 1]?.focus()
+        otpInputRefs.current[index + 1]?.focus();
       }
     }
     if (otpTouched) {
-      setOtpError(validateOtp())
+      setOtpError(validateOtp());
     }
-  }
+  };
 
   const handleOTPKeyPress = (key: string, index: number) => {
     if (key === "Backspace" && !otp[index] && index > 0) {
-      otpInputRefs.current[index - 1]?.focus()
+      otpInputRefs.current[index - 1]?.focus();
     }
-  }
+  };
 
   const handleVerifyOTP = async () => {
-    setOtpTouched(true)
-    const otpErr = validateOtp()
-    setOtpError(otpErr)
+    setOtpTouched(true);
+    const otpErr = validateOtp();
+    setOtpError(otpErr);
 
     if (otpErr) {
-      Alert.alert("Invalid OTP", otpErr)
-      return
+      Alert.alert("Invalid OTP", otpErr);
+      return;
     }
 
-    const otpString = otp.join("")
-    setIsVerifying(true)
+    const otpString = otp.join("");
+    setIsVerifying(true);
 
     try {
       const response = await fetch(API_ENDPOINTS.VERIFY_OTP, {
@@ -76,47 +89,42 @@ export default function OTPScreen() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ email, code: otpString }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Invalid OTP. Please try again.")
+        throw new Error(data.message || "Invalid OTP. Please try again.");
       }
 
-      console.log("✅ OTP verification response:", data)
+      console.log("✅ OTP verification response:", data);
 
-      // Store auth token and userId if returned by backend
-      if (data.token) {
-        await AsyncStorage.setItem("authToken", data.token)
-        console.log("💾 Auth token saved")
-      }
+      // After verification, redirect to login page as requested
+      const nextScreen = "/auth/login";
 
-      if (data.userId) {
-        await AsyncStorage.setItem("userId", data.userId.toString())
-        console.log("💾 UserId saved:", data.userId)
-      }
-
-      // If user is a donor, redirect to eligibility check; otherwise go to profile
-      const nextScreen = userType === "donor" ? "/eligibility-check" : "/profile"
-      const routeParams = userType === "donor" ? { userType: "donor" } : {}
-
-      Alert.alert("Success", "Account verified successfully!", [
-        {
-          text: "OK",
-          onPress: () => router.replace({ pathname: nextScreen as any, params: routeParams }),
-        },
-      ])
+      Alert.alert(
+        "Verification Successful",
+        "Your account has been verified successfully. Welcome to BloodBuddy!",
+        [
+          {
+            text: "OK",
+            onPress: () => router.replace(nextScreen as any),
+          },
+        ],
+      );
     } catch (error: any) {
-      console.error("OTP verification error:", error)
-      Alert.alert("Error", error.message || "Invalid OTP. Please try again.")
+      console.log("OTP verification error:", error);
+      Alert.alert(
+        "Verification failed",
+        getUserFriendlyError(error, "Invalid OTP. Please try again."),
+      );
     } finally {
-      setIsVerifying(false)
+      setIsVerifying(false);
     }
-  }
+  };
 
   const handleResendOTP = async () => {
-    setIsResending(true)
+    setIsResending(true);
 
     try {
       const response = await fetch(API_ENDPOINTS.RESEND_OTP, {
@@ -125,22 +133,27 @@ export default function OTPScreen() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ email }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Failed to resend OTP. Please try again.")
+        throw new Error(
+          data.message || "Failed to resend OTP. Please try again.",
+        );
       }
 
-      Alert.alert("Success", "OTP has been resent to your email")
+      Alert.alert("Success", "OTP has been resent to your email");
     } catch (error: any) {
-      console.error("Resend OTP error:", error)
-      Alert.alert("Error", error.message || "Failed to resend OTP. Please try again.")
+      console.log("Resend OTP error:", error);
+      Alert.alert(
+        "Resend failed",
+        getUserFriendlyError(error, "Failed to resend OTP. Please try again."),
+      );
     } finally {
-      setIsResending(false)
+      setIsResending(false);
     }
-  }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -148,21 +161,36 @@ export default function OTPScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.container}>
             {/* iPhone-style Back Icon (top-left) */}
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityLabel="Go back">
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+              accessibilityLabel="Go back"
+            >
               <Ionicons name="chevron-back" size={26} color="#111827" />
             </TouchableOpacity>
 
             {/* Center Image */}
             <View style={styles.imageWrapper}>
-              <Image source={require("../../../assets/images/otp.png")} style={styles.image} resizeMode="contain" />
+              <Image
+                source={require("../../../assets/images/otp.png")}
+                style={styles.image}
+                resizeMode="contain"
+              />
             </View>
 
             {/* Title and subtitle */}
             <Text style={styles.title}>Enter OTP</Text>
-            {!!email && <Text style={styles.subtitle}>We sent a 5-digit code to {email}</Text>}
+            {!!email && (
+              <Text style={styles.subtitle}>
+                We sent a 5-digit code to {email}
+              </Text>
+            )}
 
             {/* OTP Bubbles */}
             <View style={styles.otpCirclesContainer}>
@@ -171,13 +199,19 @@ export default function OTPScreen() {
                   key={index}
                   ref={(ref) => {
                     if (ref) {
-                      otpInputRefs.current[index] = ref
+                      otpInputRefs.current[index] = ref;
                     }
                   }}
-                  style={[styles.otpCircle, digit && styles.otpCircleFilled, otpTouched && otpError ? styles.otpCircleError : null]}
+                  style={[
+                    styles.otpCircle,
+                    digit && styles.otpCircleFilled,
+                    otpTouched && otpError ? styles.otpCircleError : null,
+                  ]}
                   value={digit}
                   onChangeText={(value) => handleOTPChange(value, index)}
-                  onKeyPress={({ nativeEvent }) => handleOTPKeyPress(nativeEvent.key, index)}
+                  onKeyPress={({ nativeEvent }) =>
+                    handleOTPKeyPress(nativeEvent.key, index)
+                  }
                   keyboardType="number-pad"
                   maxLength={1}
                   selectTextOnFocus
@@ -185,21 +219,37 @@ export default function OTPScreen() {
                 />
               ))}
             </View>
-            {otpTouched && !!otpError && <Text style={styles.errorText}>{otpError}</Text>}
+            {otpTouched && !!otpError && (
+              <Text style={styles.errorText}>{otpError}</Text>
+            )}
 
             {/* Verify Button */}
             <TouchableOpacity
-              style={[styles.verifyButton, (isVerifying || !!validateOtp()) && styles.verifyButtonDisabled]}
+              style={[
+                styles.verifyButton,
+                (isVerifying || !!validateOtp()) && styles.verifyButtonDisabled,
+              ]}
               onPress={handleVerifyOTP}
               disabled={isVerifying || !!validateOtp()}
             >
-              <Text style={styles.verifyButtonText}>{isVerifying ? "Verifying..." : "Verify OTP"}</Text>
+              <Text style={styles.verifyButtonText}>
+                {isVerifying ? "Verifying..." : "Verify OTP"}
+              </Text>
             </TouchableOpacity>
 
             {/* Resend OTP */}
             {!!email && (
-              <TouchableOpacity style={styles.resendContainer} onPress={handleResendOTP} disabled={isResending}>
-                <Text style={[styles.resendText, isResending && styles.resendTextDisabled]}>
+              <TouchableOpacity
+                style={styles.resendContainer}
+                onPress={handleResendOTP}
+                disabled={isResending}
+              >
+                <Text
+                  style={[
+                    styles.resendText,
+                    isResending && styles.resendTextDisabled,
+                  ]}
+                >
                   {isResending ? "Sending..." : "Resend OTP"}
                 </Text>
               </TouchableOpacity>
@@ -208,7 +258,7 @@ export default function OTPScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -329,4 +379,4 @@ const styles = StyleSheet.create({
     opacity: 0.5,
     color: "#9B7B7F",
   },
-})
+});

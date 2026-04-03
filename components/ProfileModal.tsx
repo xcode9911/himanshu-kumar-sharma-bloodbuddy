@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
     Dimensions,
+    Image,
     Modal,
     ScrollView,
     StyleSheet,
@@ -9,6 +10,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { API_BASE_URL } from "../config/api";
 import { moderateScale, scale, verticalScale } from "../utils/responsive";
 
 const { width } = Dimensions.get("window");
@@ -60,10 +62,17 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose, userData 
 
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                         <View style={styles.profileHeader}>
-                            <View style={styles.avatar}>
-                                <Text style={styles.avatarText}>
-                                    {getInitials(userData.organization?.organizationName || userData.fullName)}
-                                </Text>
+                            <View style={[styles.avatar, (userData.ProfileImage || userData.profileImage) && { borderWidth: 0 }]}>
+                                {userData.ProfileImage || userData.profileImage ? (
+                                    <Image 
+                                        source={{ uri: `${API_BASE_URL}/${(userData.ProfileImage || userData.profileImage).path}` }}
+                                        style={styles.avatarImage}
+                                    />
+                                ) : (
+                                    <Text style={styles.avatarText}>
+                                        {getInitials(userData.organization?.organizationName || userData.fullName)}
+                                    </Text>
+                                )}
                             </View>
                             <Text style={styles.userName}>{userData.fullName}</Text>
                             <View style={styles.roleBadge}>
@@ -156,6 +165,11 @@ const styles = StyleSheet.create({
         fontSize: moderateScale(28),
         fontWeight: "700",
         color: "#D11B31",
+    },
+    avatarImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: moderateScale(40),
     },
     userName: {
         fontSize: moderateScale(22),

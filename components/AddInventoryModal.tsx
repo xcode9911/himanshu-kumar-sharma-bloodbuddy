@@ -94,8 +94,19 @@ export default function AddInventoryModal({
   }
 
   const handleSubmit = async () => {
-    if (!units || isNaN(Number(units))) {
+    const parsedUnits = Number(units)
+    if (!units || isNaN(parsedUnits)) {
       Alert.alert("Error", "Please enter a valid number of units")
+      return
+    }
+
+    if (parsedUnits === 0) {
+      Alert.alert("Error", "Cannot add 0 units")
+      return
+    }
+
+    if (parsedUnits < 0) {
+      Alert.alert("Error", "Units cannot be negative")
       return
     }
 
@@ -208,6 +219,7 @@ export default function AddInventoryModal({
             {bloodTypes.map((type) => (
               <TouchableOpacity
                 key={type}
+                testID={`bloodType_${type}`}
                 style={[styles.chip, bloodType === type && styles.chipSelected]}
                 activeOpacity={0.85}
                 onPress={() => setBloodType(type)}
@@ -234,6 +246,7 @@ export default function AddInventoryModal({
 
           <Text style={styles.label}>Units</Text>
           <TextInput
+            testID="inventoryUnitsInput"
             style={styles.input}
             keyboardType="numeric"
             value={units}
@@ -244,6 +257,7 @@ export default function AddInventoryModal({
           />
 
           <TouchableOpacity
+            testID="addInventorySubmitButton"
             style={[styles.primaryButton, isSubmitting && styles.primaryButtonDisabled]}
             activeOpacity={0.85}
             onPress={handleSubmit}

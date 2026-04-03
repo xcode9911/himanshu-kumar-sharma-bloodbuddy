@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { useRouter, useFocusEffect } from "expo-router";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   Alert,
   Animated,
@@ -28,7 +28,7 @@ import KhaltiPaymentModal from "../../components/KhaltiPaymentModal";
 import Navigation from "../../components/Navigation";
 import QuickDonationModal from "../../components/QuickDonationModal";
 import ReceivedPaymentsModal from "../../components/ReceivedPaymentsModal";
-import { API_ENDPOINTS } from "../../config/api";
+import { API_ENDPOINTS, API_BASE_URL } from "../../config/api";
 import { connectSocket } from "../../config/socket";
 import { useNotifications } from "../../context/NotificationContext";
 import { moderateScale, scale, verticalScale } from "../../utils/responsive";
@@ -83,18 +83,21 @@ export default function Home() {
   // Campaign Data
   const [activeCampaigns, setActiveCampaigns] = useState<any[]>([]);
 
-  const mockBubbles = [
-    { id: '1', initials: 'SK', color: '#D11B31' },
-    { id: '2', initials: 'AM', color: '#2563EB' },
-    { id: '3', initials: 'RP', color: '#059669' },
-    { id: '4', initials: 'VG', color: '#7C3AED' },
-    { id: '5', initials: 'NS', color: '#F59E0B' },
-  ];
+  // Leaderboard Data
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
-  // Animation for Donor Bubbles (Gainer visual)
+  // Active Donors
+  const [activeDonorsCount, setActiveDonorsCount] = useState<number>(0);
+  const [activeDonorBubbles, setActiveDonorBubbles] = useState<any[]>([]);
+
+  // Organization Stats
+  const [totalOrgUnits, setTotalOrgUnits] = useState<number>(0);
+  const [orgProfileImage, setOrgProfileImage] = useState<string | null>(null);
+
+  // Always initialize 5 animations to use hooks correctly
   const slideAnim = useRef(new Animated.Value(1)).current; // Scale anim
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const staggeredAnims = useRef(mockBubbles.map(() => new Animated.Value(0))).current;
+  const staggeredAnims = useRef(Array(5).fill(0).map(() => new Animated.Value(0))).current;
 
   // Banner State
   const bannerImages = [
@@ -110,10 +113,68 @@ export default function Home() {
 
   const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
-  useEffect(() => {
-    loadUserData();
-    fetchCampaigns();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadUserData();
+      fetchCampaigns();
+      fetchLeaderboard();
+      fetchActiveDonorsCount();
+      if (userType === 'organization') {
+        fetchOrganizationStats();
+      }
+    }, [userType])
+  );
+
+  const fetchOrganizationStats = async () => {
+    try {
+      const token = await AsyncStorage.getItem("authToken");
+      if (!token) return;
+
+      const invResponse = await fetch(API_ENDPOINTS.GET_INVENTORY, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (invResponse.ok) {
+        const data = await invResponse.json();
+        const list = data?.inventory || data?.data || data?.items || data || [];
+        const total = list.reduce((sum: number, item: any) => sum + Number(item.units || item.quantity || 0), 0);
+        setTotalOrgUnits(total);
+      }
+
+      const userDataStr = await AsyncStorage.getItem("userData");
+      if (userDataStr) {
+        const parsed = JSON.parse(userDataStr);
+        if (parsed.id) {
+          const profileRes = await fetch(API_ENDPOINTS.GET_PROFILE(parsed.id), {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (profileRes.ok) {
+            const profileData = await profileRes.json();
+            
+            const fetchedOrgName = profileData.user?.organization?.OrganizationName || profileData.user?.OrganizationName;
+            if (fetchedOrgName) {
+              setUserName(fetchedOrgName);
+            }
+
+            const pImage = profileData.user?.ProfileImage || profileData.user?.profileImage || profileData.user?.organization?.ProfileImage;
+            if (pImage) {
+               if (typeof pImage === 'string') {
+                 try {
+                   const imgObj = JSON.parse(pImage);
+                   if (imgObj?.path) setOrgProfileImage(`${API_BASE_URL}/${imgObj.path.replace(/\\/g, '/')}`);
+                 } catch(e) {
+                   setOrgProfileImage(pImage);
+                 }
+               } else if (pImage?.path) {
+                 setOrgProfileImage(`${API_BASE_URL}/${pImage.path.replace(/\\/g, '/')}`);
+               }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  };
 
   useEffect(() => {
     if (userType === "gainer" || userType === "organization") {
@@ -175,7 +236,26 @@ export default function Home() {
         const parsed = JSON.parse(userData);
         const role = (parsed.role || "donor").toLowerCase();
         setUserType(role as UserType);
-        setUserName(parsed.fullName || "User");
+        
+        if (role === 'organization') {
+          setUserName(parsed.organizationName || parsed.fullName || "Org");
+          const pImg = parsed.ProfileImage || parsed.profileImage;
+          if (pImg) {
+            if (typeof pImg === 'string') {
+              try {
+                const imgObj = JSON.parse(pImg);
+                if (imgObj?.path) setOrgProfileImage(`${API_BASE_URL}/${imgObj.path.replace(/\\/g, '/')}`);
+              } catch(e) {
+                setOrgProfileImage(pImg);
+              }
+            } else if (pImg?.path) {
+              setOrgProfileImage(`${API_BASE_URL}/${pImg.path.replace(/\\/g, '/')}`);
+            }
+          }
+        } else {
+          setUserName(parsed.fullName || "User");
+        }
+        
         setUserId(parsed.id || null);
         setDonorBloodType(parsed.bloodType || "A+");
         if (parsed.id) {
@@ -263,7 +343,7 @@ export default function Home() {
         setUnreadCount(pendingCount);
       }
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.log("Error fetching data:", error);
     } finally {
       setLoadingBookings(false);
     }
@@ -286,7 +366,58 @@ export default function Home() {
         setActiveCampaigns(campaignsWithPosters);
       }
     } catch (error) {
-      console.error("Error fetching campaigns:", error);
+      console.log("Error fetching campaigns:", error);
+    }
+  };
+
+  const fetchLeaderboard = async () => {
+    try {
+      const token = await AsyncStorage.getItem("authToken");
+      const response = await fetch(API_ENDPOINTS.GET_LEADERBOARD, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Use Yearly for the home screen podium as requested "number of times"
+        setLeaderboard(data.yearly || []);
+      }
+    } catch (error) {
+      console.log("Error fetching leaderboard:", error);
+    }
+  };
+
+  const fetchActiveDonorsCount = async () => {
+    try {
+      const token = await AsyncStorage.getItem("authToken");
+      const response = await fetch(API_ENDPOINTS.GET_DONORS, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const availableDonors = (data.donors || []).filter((d: any) => d.isAvailable === true);
+        setActiveDonorsCount(availableDonors.length);
+
+        const colors = ['#D11B31', '#2563EB', '#059669', '#7C3AED'];
+        const bubbles = availableDonors.slice(0, 4).map((d: any, index: number) => {
+          let initials = '??';
+          if (d.name) {
+            initials = d.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+          }
+          return {
+            id: d.donorId || d.id || `${index}`,
+            initials,
+            profileImage: typeof d.profileImage === 'string'
+              ? d.profileImage
+              : d.profileImage?.path
+                ? `${API_BASE_URL}/${d.profileImage.path.replace(/\\/g, '/')}`
+                : null
+          };
+        });
+        setActiveDonorBubbles(bubbles);
+      }
+    } catch (error) {
+      console.log("Error fetching active donors:", error);
     }
   };
 
@@ -321,7 +452,7 @@ export default function Home() {
                 Alert.alert("Error", data.message || "Failed to cancel booking");
               }
             } catch (error) {
-              console.error("Cancel error:", error);
+              console.log("Cancel error:", error);
               Alert.alert("Error", "Something went wrong. Please try again.");
             }
           },
@@ -408,7 +539,11 @@ export default function Home() {
   return (
     <View style={{ flex: 1 }}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity onPress={() => router.push("/profile")} activeOpacity={0.8}>
+        <TouchableOpacity 
+          testID="homeProfileCard" 
+          onPress={() => router.push("/profile")} 
+          activeOpacity={0.8}
+        >
           <ImageBackground
             source={require("../../assets/images/background.png")}
             style={styles.header}
@@ -439,35 +574,58 @@ export default function Home() {
               </View>
               <Text style={styles.welcomeMessage}>{getWelcomeMessage()}</Text>
 
-              {userType !== "gainer" ? (
+              {userType === "organization" ? (
                 <View style={styles.headerStatsRow}>
                   <View style={styles.headerStatItem}>
-                    <Text style={styles.headerStatValue}>
-                      {userType === "donor" ? "3" : "245"}
-                    </Text>
-                    <Text style={styles.headerStatLabel}>
-                      {userType === "donor" ? "Donations" : "Units"}
-                    </Text>
+                    <Text style={styles.headerStatValue}>{totalOrgUnits}</Text>
+                    <Text style={styles.headerStatLabel}>Total Units</Text>
                   </View>
                   <View style={styles.headerStatDivider} />
                   <View style={styles.headerStatItem}>
-                    <Text style={styles.headerStatValue}>A+</Text>
+                    <View style={{ marginBottom: verticalScale(4) }}>
+                      {orgProfileImage ? (
+                        <Image 
+                          source={{ uri: orgProfileImage }} 
+                          style={{ width: moderateScale(32), height: moderateScale(32), borderRadius: moderateScale(16), resizeMode: 'cover' }} 
+                        />
+                      ) : (
+                        <View style={{ width: moderateScale(32), height: moderateScale(32), borderRadius: moderateScale(16), backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center' }}>
+                          <Text style={{ fontSize: moderateScale(14), fontWeight: '700', color: '#D11B31' }}>
+                            {userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'UK'}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                  <View style={styles.headerStatDivider} />
+                  <View style={styles.headerStatItem}>
+                    <Text style={styles.headerStatValue}>
+                      {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    </Text>
+                    <Text style={styles.headerStatLabel}>Today</Text>
+                  </View>
+                </View>
+              ) : userType === "donor" ? (
+                <View style={styles.headerStatsRow}>
+                  <View style={styles.headerStatItem}>
+                    <Text style={styles.headerStatValue}>3</Text>
+                    <Text style={styles.headerStatLabel}>Donations</Text>
+                  </View>
+                  <View style={styles.headerStatDivider} />
+                  <View style={styles.headerStatItem}>
+                    <Text style={styles.headerStatValue}>{donorBloodType || "A+"}</Text>
                     <Text style={styles.headerStatLabel}>My Blood</Text>
                   </View>
                   <View style={styles.headerStatDivider} />
                   <View style={styles.headerStatItem}>
-                    <Text style={styles.headerStatValue}>
-                      {userType === "donor" ? "45" : "15"}
-                    </Text>
-                    <Text style={styles.headerStatLabel}>
-                      {userType === "donor" ? "Days Left" : "Today"}
-                    </Text>
+                    <Text style={styles.headerStatValue}>45</Text>
+                    <Text style={styles.headerStatLabel}>Days Left</Text>
                   </View>
                 </View>
               ) : (
                 <Animated.View style={[styles.gainerHeaderPromo, { opacity: fadeAnim, transform: [{ scale: slideAnim }] }]}>
                   <View style={styles.avatarGroup}>
-                    {mockBubbles.slice(0, 4).map((bubble, index) => (
+                    {activeDonorBubbles.map((bubble, index) => (
                       <Animated.View
                         key={bubble.id}
                         style={[
@@ -489,27 +647,36 @@ export default function Home() {
                           }
                         ]}
                       >
-                        <Text style={styles.avatarText}>{bubble.initials}</Text>
+                        {bubble.profileImage ? (
+                          <Image
+                            source={{ uri: bubble.profileImage }}
+                            style={{ width: '100%', height: '100%', borderRadius: moderateScale(20), resizeMode: 'cover' }}
+                          />
+                        ) : (
+                          <Text style={styles.avatarText}>{bubble.initials}</Text>
+                        )}
                       </Animated.View>
                     ))}
-                    <Animated.View
-                      style={[
-                        styles.avatarCircle,
-                        styles.moreCircle,
-                        {
-                          zIndex: 0,
-                          marginLeft: -scale(15),
-                          opacity: staggeredAnims[4],
-                          transform: [{ scale: staggeredAnims[4] }]
-                        }
-                      ]}
-                    >
-                      <Text style={styles.avatarText}>+42</Text>
-                    </Animated.View>
+                    {activeDonorsCount > activeDonorBubbles.length && (
+                      <Animated.View
+                        style={[
+                          styles.avatarCircle,
+                          styles.moreCircle,
+                          {
+                            zIndex: 0,
+                            marginLeft: -scale(15),
+                            opacity: staggeredAnims[4],
+                            transform: [{ scale: staggeredAnims[4] }]
+                          }
+                        ]}
+                      >
+                        <Text style={styles.avatarText}>+{activeDonorsCount - activeDonorBubbles.length}</Text>
+                      </Animated.View>
+                    )}
                   </View>
                   <View style={styles.activeInfoContainer}>
-                    <Text style={styles.activeDonorsTitle}>42 Active Donors</Text>
-                    <Text style={styles.activeDonorsSub}>Ready to help in your current location</Text>
+                    <Text style={styles.activeDonorsTitle}>{activeDonorsCount} Active Donors</Text>
+                    <Text style={styles.activeDonorsSub}>Ready to help you</Text>
                   </View>
                 </Animated.View>
               )}
@@ -518,7 +685,7 @@ export default function Home() {
         </TouchableOpacity>
 
         {/* Banner Section */}
-        <View style={styles.section}>
+        <View style={[styles.section, { marginTop: verticalScale(16) }]}>
           <View style={styles.bannerContainer}>
             <ScrollView
               ref={bannerScrollRef}
@@ -545,13 +712,20 @@ export default function Home() {
                       <Text style={styles.campaignTitle} numberOfLines={1}>{campaign.title}</Text>
                       <Text style={styles.campaignOrg} numberOfLines={1}>{campaign.organizationName}</Text>
                     </View>
+                    <View style={styles.bannerBadge}>
+                      <Text style={styles.bannerBadgeText}>Live</Text>
+                    </View>
                   </TouchableOpacity>
                 ))
               ) : (
                 bannerImages.map((source, index) => (
-                  <View key={index} style={[styles.bannerSlide, { width: bannerWidth }]}>
+                  <TouchableOpacity
+                    key={index}
+                    style={[styles.bannerSlide, { width: bannerWidth }]}
+                    onPress={() => router.push("/campaign")}
+                  >
                     <Image source={source} style={styles.bannerImage} resizeMode="cover" />
-                  </View>
+                  </TouchableOpacity>
                 ))
               )}
             </ScrollView>
@@ -562,6 +736,53 @@ export default function Home() {
             </View>
           </View>
         </View>
+
+        {/* Leaderboard Podium Section */}
+        {leaderboard.length > 0 && (
+          <View style={[styles.section, { marginTop: verticalScale(16) }]}>
+            <Text style={[styles.sectionTitle, { marginBottom: verticalScale(10) }]}>Top Donors</Text>
+            <TouchableOpacity 
+              style={styles.podiumContainer} 
+              activeOpacity={0.9}
+              onPress={() => router.push("/leaderboard")}
+            >
+              <View style={styles.podiumWrapper}>
+                {/* 2nd Place */}
+                {leaderboard[1] && (
+                  <View style={[styles.podiumItem, styles.podium2]}>
+                    <View style={styles.avatarWrapper}>
+                      <Image source={require("../../assets/images/rank2.png")} style={styles.avatarPlaceholder} />
+                    </View>
+                    <Text style={styles.podiumName} numberOfLines={1}>{leaderboard[1].name}</Text>
+                    <Text style={styles.podiumCount}>{leaderboard[1].yearlyCount} times</Text>
+                  </View>
+                )}
+
+                {/* 1st Place */}
+                {leaderboard[0] && (
+                  <View style={[styles.podiumItem, styles.podium1]}>
+                    <View style={[styles.avatarWrapper, styles.avatarWrapperLarge]}>
+                      <Image source={require("../../assets/images/rank1.png")} style={styles.avatarPlaceholderLarge} />
+                    </View>
+                    <Text style={[styles.podiumName, styles.podiumNameLarge]} numberOfLines={1}>{leaderboard[0].name}</Text>
+                    <Text style={[styles.podiumCount, styles.podiumCountLarge]}>{leaderboard[0].yearlyCount} times</Text>
+                  </View>
+                )}
+
+                {/* 3rd Place */}
+                {leaderboard[2] && (
+                  <View style={[styles.podiumItem, styles.podium3]}>
+                    <View style={styles.avatarWrapper}>
+                      <Image source={require("../../assets/images/rank3.png")} style={styles.avatarPlaceholder} />
+                    </View>
+                    <Text style={styles.podiumName} numberOfLines={1}>{leaderboard[2].name}</Text>
+                    <Text style={styles.podiumCount}>{leaderboard[2].yearlyCount} times</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Quick Actions */}
         {userType !== "gainer" && (
@@ -899,7 +1120,112 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(18),
     fontWeight: "700",
     color: "#111827",
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: verticalScale(12),
+  },
+  viewAllText: {
+    fontSize: moderateScale(14),
+    color: "#D11B31",
+    fontWeight: "600",
+  },
+  podiumContainer: {
+    backgroundColor: '#FFF',
+    borderRadius: moderateScale(16),
+    paddingVertical: scale(8),
+    paddingHorizontal: scale(12),
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  podiumWrapper: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    height: verticalScale(95),
+  },
+  podiumItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  podium1: {
+    zIndex: 2,
+    marginTop: -verticalScale(20),
+  },
+  podium2: {
+    zIndex: 1,
+  },
+  podium3: {
+    zIndex: 1,
+  },
+  avatarWrapper: {
+    position: 'relative',
+    marginBottom: verticalScale(8),
+  },
+  avatarWrapperLarge: {
+    marginBottom: verticalScale(12),
+  },
+  podiumBadge: {
+    position: 'absolute',
+    top: -scale(10),
+    right: -scale(5),
+    width: scale(24),
+    height: scale(24),
+    zIndex: 3,
+  },
+  podiumBadgeLarge: {
+    width: scale(32),
+    height: scale(32),
+    top: -scale(12),
+    right: -scale(8),
+  },
+  avatarPlaceholder: {
+    width: moderateScale(44),
+    height: moderateScale(44),
+    borderRadius: moderateScale(22),
+    resizeMode: 'contain',
+  },
+  avatarPlaceholderLarge: {
+    width: moderateScale(60),
+    height: moderateScale(60),
+    borderRadius: moderateScale(30),
+    resizeMode: 'contain',
+  },
+  avatarPlaceholderText: {
+    fontSize: moderateScale(20),
+    fontWeight: '800',
+    color: '#000',
+  },
+  avatarPlaceholderTextLarge: {
+    fontSize: moderateScale(28),
+    color: '#D11B31',
+  },
+  podiumName: {
+    fontSize: moderateScale(12),
+    fontWeight: '700',
+    color: '#1F2937',
+    maxWidth: scale(80),
+    textAlign: 'center',
+  },
+  podiumNameLarge: {
+    fontSize: moderateScale(14),
+    color: '#111827',
+  },
+  podiumCount: {
+    fontSize: moderateScale(10),
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  podiumCountLarge: {
+    fontSize: moderateScale(12),
+    color: '#D11B31',
   },
   bannerContainer: {
     alignItems: "center",
@@ -952,6 +1278,22 @@ const styles = StyleSheet.create({
     color: '#E5E7EB',
     fontSize: moderateScale(12),
     fontWeight: '500',
+  },
+  bannerBadge: {
+    position: 'absolute',
+    top: verticalScale(12),
+    right: scale(12),
+    backgroundColor: '#10B981',
+    paddingHorizontal: scale(10),
+    paddingVertical: verticalScale(4),
+    borderRadius: moderateScale(8),
+    zIndex: 2,
+  },
+  bannerBadgeText: {
+    color: '#FFF',
+    fontSize: moderateScale(10),
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   quickActionsContainer: {
     backgroundColor: "#FFFFFF",

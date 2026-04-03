@@ -81,7 +81,7 @@ export default function QuickDonationModal({ visible, onClose, donorBloodType }:
                 setFilteredOrganizations(normalized);
             }
         } catch (error) {
-            console.error("Error loading organizations:", error);
+            console.log("Error loading organizations:", error);
         } finally {
             setLoading(false);
         }
@@ -129,7 +129,7 @@ export default function QuickDonationModal({ visible, onClose, donorBloodType }:
                 Alert.alert("Error", data.message || "Failed to submit donation offer");
             }
         } catch (error) {
-            console.error("Donation error:", error);
+            console.log("Donation error:", error);
             Alert.alert("Error", "Something went wrong. Please try again.");
         } finally {
             setSubmitting(false);

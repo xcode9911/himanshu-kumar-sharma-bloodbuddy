@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
+    Image,
     KeyboardAvoidingView,
     Platform,
     SafeAreaView,
@@ -41,6 +42,7 @@ export default function ConversationScreen() {
     const [selectedUser, setSelectedUser] = useState<any>(null);
     const [isProfileModalVisible, setIsProfileModalVisible] = useState(false);
     const [isProfileLoading, setIsProfileLoading] = useState(false);
+    const [partnerProfileImage, setPartnerProfileImage] = useState<any>(null);
     const flatListRef = useRef<FlatList>(null);
 
     useEffect(() => {
@@ -104,10 +106,11 @@ export default function ConversationScreen() {
                 setUserName(parsed.fullName || parsed.FullName);
                 connectSocket(uid);
             }
+            await fetchPartnerProfile();
             await fetchMessages();
             await markAsRead();
         } catch (error) {
-            console.error("Error loading conversation data:", error);
+            console.log("Error loading conversation data:", error);
         } finally {
             setLoading(false);
         }
@@ -125,7 +128,7 @@ export default function ConversationScreen() {
             const contentType = response.headers.get("content-type")
             if (!contentType || !contentType.includes("application/json")) {
                 const text = await response.text()
-                console.error("Non-JSON response received (fetchMessages):", text.slice(0, 100))
+                console.log("Non-JSON response received (fetchMessages):", text.slice(0, 100))
                 return
             }
 
@@ -143,7 +146,7 @@ export default function ConversationScreen() {
                 setMessages(formatted);
             }
         } catch (error) {
-            console.error("Error fetching messages:", error);
+            console.log("Error fetching messages:", error);
         }
     };
 
@@ -165,7 +168,7 @@ export default function ConversationScreen() {
                 )
             );
         } catch (error) {
-            console.error("Error marking as read:", error);
+            console.log("Error marking as read:", error);
         }
     };
 
@@ -205,7 +208,24 @@ export default function ConversationScreen() {
                 emitPrivateMessage(contactId as string, text, currentUserId, userName);
             }
         } catch (error) {
-            console.error("Error sending message:", error);
+            console.log("Error sending message:", error);
+        }
+    };
+    
+    const fetchPartnerProfile = async () => {
+        try {
+            const token = await AsyncStorage.getItem("authToken");
+            const response = await fetch(API_ENDPOINTS.GET_PROFILE(contactId as string), {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            const data = await response.json();
+            if (response.ok) {
+                setPartnerProfileImage(data.user?.ProfileImage || data.user?.profileImage);
+            }
+        } catch (error) {
+            console.log("Error fetching partner profile:", error);
         }
     };
 
@@ -224,7 +244,7 @@ export default function ConversationScreen() {
                 setIsProfileModalVisible(true);
             }
         } catch (error) {
-            console.error("Error fetching profile:", error);
+            console.log("Error fetching profile:", error);
         } finally {
             setIsProfileLoading(false);
         }
@@ -282,10 +302,17 @@ export default function ConversationScreen() {
                             <Ionicons name="chevron-back" size={28} color="#D11B31" />
                         </TouchableOpacity>
                         <TouchableOpacity onPress={handleShowProfile} style={styles.headerAvatarContainer}>
-                            <View style={styles.headerAvatar}>
-                                <Text style={styles.headerAvatarText}>
-                                    {getInitials((organizationName as string) || (contactName as string))}
-                                </Text>
+                            <View style={[styles.headerAvatar, partnerProfileImage && { borderWidth: 0 }]}>
+                                {partnerProfileImage ? (
+                                    <Image 
+                                        source={{ uri: typeof partnerProfileImage === 'string' ? partnerProfileImage : `${API_BASE_URL}/${partnerProfileImage.path}` }}
+                                        style={styles.headerAvatarImage}
+                                    />
+                                ) : (
+                                    <Text style={styles.headerAvatarText}>
+                                        {getInitials((organizationName as string) || (contactName as string))}
+                                    </Text>
+                                )}
                                 <View style={styles.viewProfileOverlay}>
                                     <Text style={styles.viewProfileText}>View</Text>
                                 </View>
@@ -403,6 +430,11 @@ const styles = StyleSheet.create({
         color: "#D11B31",
         fontSize: moderateScale(14),
         fontWeight: "700",
+    },
+    headerAvatarImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: moderateScale(20),
     },
     headerTitleContainer: {
         flex: 1,

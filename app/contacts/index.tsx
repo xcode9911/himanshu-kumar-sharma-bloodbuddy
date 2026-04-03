@@ -1,104 +1,120 @@
-import { Ionicons } from "@expo/vector-icons"
-import AsyncStorage from "@react-native-async-storage/async-storage"
-import { useRouter } from "expo-router"
-import React, { useEffect, useState } from "react"
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native"
-import Navigation from "../../components/Navigation"
-import { API_ENDPOINTS } from "../../config/api"
-import { moderateScale, scale, verticalScale } from "../../utils/responsive"
+    ActivityIndicator,
+    FlatList,
+    Image,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import Navigation from "../../components/Navigation";
+import { API_BASE_URL, API_ENDPOINTS } from "../../config/api";
+import { moderateScale, scale, verticalScale } from "../../utils/responsive";
 
-type UserType = "gainer" | "donor" | "organization"
+type UserType = "gainer" | "donor" | "organization";
 
 interface Contact {
-  id: string
-  name: string
-  phone: string
-  bloodType?: string
-  address: string
-  city: string
-  email: string
-  lastDonation?: string
-  role: string
-  location?: string
-  isAvailable?: boolean
-  inventory?: { bloodType: string; units: number }[]
+  id: string;
+  name: string;
+  phone: string;
+  bloodType?: string;
+  address: string;
+  city: string;
+  email: string;
+  lastDonation?: string;
+  role: string;
+  location?: string;
+  isAvailable?: boolean;
+  inventory?: { bloodType: string; units: number }[];
+  profileImage?: any;
 }
 
 interface ContactsScreenProps {
-  hideNavigation?: boolean
+  hideNavigation?: boolean;
 }
 
-export default function ContactsScreen({ hideNavigation = false }: ContactsScreenProps = {}) {
-  const router = useRouter()
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [filteredContacts, setFilteredContacts] = useState<Contact[]>([])
-  const [searchQuery, setSearchQuery] = useState("")
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [userType, setUserType] = useState<UserType>("donor")
-  const [activeCategory, setActiveCategory] = useState<"organization" | "donor">("organization")
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
-  const [detailsModalVisible, setDetailsModalVisible] = useState(false)
+const CONTACTS_PER_PAGE = 5;
+
+export default function ContactsScreen({
+  hideNavigation = false,
+}: ContactsScreenProps = {}) {
+  const router = useRouter();
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [userType, setUserType] = useState<UserType>("donor");
+  const [activeCategory, setActiveCategory] = useState<
+    "organization" | "donor"
+  >("organization");
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
+  const [contactsPage, setContactsPage] = useState(1);
 
   useEffect(() => {
-    loadUserData()
-  }, [])
+    loadUserData();
+  }, []);
 
   useEffect(() => {
-    loadContacts()
-  }, [userType, activeCategory])
+    loadContacts();
+  }, [userType, activeCategory]);
 
   useEffect(() => {
-    filterContacts()
-  }, [searchQuery, contacts])
+    filterContacts();
+  }, [searchQuery, contacts]);
+
+  useEffect(() => {
+    setContactsPage(1);
+  }, [searchQuery, activeCategory]);
 
   const loadUserData = async () => {
     try {
-      const userData = await AsyncStorage.getItem("userData")
+      const userData = await AsyncStorage.getItem("userData");
       if (userData) {
-        const parsed = JSON.parse(userData)
-        setUserType(parsed.role || "donor")
+        const parsed = JSON.parse(userData);
+        setUserType(parsed.role || "donor");
       }
     } catch (error) {
-      console.log("Error loading user data:", error)
+      console.log("Error loading user data:", error);
     }
-  }
+  };
 
   const loadContacts = async () => {
     try {
-      setLoading(true)
-      const token = await AsyncStorage.getItem("authToken")
+      setLoading(true);
+      const token = await AsyncStorage.getItem("authToken");
 
-      let url = ""
+      let url = "";
       if (userType === "gainer") {
-        url = activeCategory === "organization" ? API_ENDPOINTS.GET_ORGANIZATIONS : API_ENDPOINTS.GET_DONORS
+        url =
+          activeCategory === "organization"
+            ? API_ENDPOINTS.GET_ORGANIZATIONS
+            : API_ENDPOINTS.GET_DONORS;
       } else {
         // For donors/orgs, maybe show both or just one. Defaulting to organizations if not gainer for now.
-        url = API_ENDPOINTS.GET_ORGANIZATIONS
+        url = API_ENDPOINTS.GET_ORGANIZATIONS;
       }
 
       const response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (response.ok) {
-        let formattedContacts: Contact[] = []
-        if (activeCategory === "organization" || (userType !== "gainer")) {
+        let formattedContacts: Contact[] = [];
+        if (activeCategory === "organization" || userType !== "gainer") {
           formattedContacts = (data.organizations || []).map((org: any) => ({
             id: org.id,
             organizationId: org.organizationId,
@@ -109,60 +125,61 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
             email: org.email,
             role: "Organization",
             bloodType: "All",
-            inventory: org.inventory
-          }))
+            inventory: org.inventory,
+            profileImage: org.profileImage || null,
+          }));
         } else {
           // For donors from getAllDonors, id is already userId
-          formattedContacts = data.donors || []
+          formattedContacts = data.donors || [];
         }
-        setContacts(formattedContacts)
-        setFilteredContacts(formattedContacts)
+        setContacts(formattedContacts);
+        setFilteredContacts(formattedContacts);
       } else {
-        console.error("Failed to fetch contacts:", data.message)
+        console.log("Failed to fetch contacts:", data.message);
       }
     } catch (error) {
-      console.error("Error loading contacts:", error)
+      console.log("Error loading contacts:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const onRefresh = async () => {
-    setRefreshing(true)
-    await loadContacts()
-    setRefreshing(false)
-  }
+    setRefreshing(true);
+    await loadContacts();
+    setRefreshing(false);
+  };
 
   const filterContacts = () => {
-    let filtered = [...contacts]
+    let filtered = [...contacts];
 
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
+      const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (contact) =>
           contact.name.toLowerCase().includes(query) ||
           contact.phone.includes(query) ||
           contact.city?.toLowerCase().includes(query) ||
           contact.address?.toLowerCase().includes(query) ||
-          contact.bloodType?.toLowerCase().includes(query)
-      )
+          contact.bloodType?.toLowerCase().includes(query),
+      );
     }
-    setFilteredContacts(filtered)
-  }
+    setFilteredContacts(filtered);
+  };
 
   const getAvatarColor = (role: string) => {
     switch (role.toLowerCase()) {
       case "donor":
-        return "#D11B31"
+        return "#D11B31";
       case "recipient":
       case "gainer":
-        return "#2563EB"
+        return "#2563EB";
       case "organization":
-        return "#7C3AED"
+        return "#7C3AED";
       default:
-        return "#6B7280"
+        return "#6B7280";
     }
-  }
+  };
 
   const getInitials = (name: string) => {
     return name
@@ -170,25 +187,25 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
       .map((n) => n[0])
       .join("")
       .toUpperCase()
-      .slice(0, 2)
-  }
+      .slice(0, 2);
+  };
 
   const handleChatPress = (contact: Contact) => {
-    console.log("Chat with:", contact.id)
+    console.log("Chat with:", contact.id);
     router.push({
       pathname: "/chat/conversation",
       params: {
         contactId: contact.id,
         contactName: contact.name,
-        contactRole: contact.role
-      }
-    })
-  }
+        contactRole: contact.role,
+      },
+    });
+  };
 
   const handleViewProfile = (contact: Contact) => {
-    setSelectedContact(contact)
-    setDetailsModalVisible(true)
-  }
+    setSelectedContact(contact);
+    setDetailsModalVisible(true);
+  };
 
   const renderContactCard = ({ item }: { item: Contact }) => (
     <TouchableOpacity
@@ -197,13 +214,32 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
       onPress={() => handleViewProfile(item)}
     >
       <View style={styles.cardHeader}>
-        <View style={[styles.avatarContainer, { backgroundColor: getAvatarColor(item.role) }]}>
-          <Text style={styles.avatarText}>{getInitials(item.name)}</Text>
+        <View
+          style={[
+            styles.avatarContainer,
+            { backgroundColor: getAvatarColor(item.role), overflow: "hidden" },
+          ]}
+        >
+          {item.profileImage ? (
+            <Image
+              source={{
+                uri:
+                  typeof item.profileImage === "string"
+                    ? item.profileImage
+                    : `${API_BASE_URL}/${item.profileImage.path.replace(/\\/g, "/")}`,
+              }}
+              style={{ width: "100%", height: "100%", resizeMode: "cover" }}
+            />
+          ) : (
+            <Text style={styles.avatarText}>{getInitials(item.name)}</Text>
+          )}
         </View>
 
         <View style={styles.contactInfo}>
           <View style={styles.nameRow}>
-            <Text style={styles.contactName} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.contactName} numberOfLines={1}>
+              {item.name}
+            </Text>
             {item.bloodType && item.role === "Donor" && (
               <View style={styles.bloodBadgeSmall}>
                 <Text style={styles.bloodTextSmall}>{item.bloodType}</Text>
@@ -218,7 +254,11 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
           style={styles.sideChatBtn}
           onPress={() => handleChatPress(item)}
         >
-          <Ionicons name="chatbubble-ellipses-outline" size={24} color="#D11B31" />
+          <Ionicons
+            name="chatbubble-ellipses-outline"
+            size={24}
+            color="#D11B31"
+          />
         </TouchableOpacity>
       </View>
 
@@ -227,13 +267,15 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
           {item.role === "Organization" && (
             <>
               <Ionicons name="location-outline" size={14} color="#6B7280" />
-              <Text style={styles.locationText} numberOfLines={1}>{item.address}</Text>
+              <Text style={styles.locationText} numberOfLines={1}>
+                {item.address}
+              </Text>
             </>
           )}
         </View>
       </View>
     </TouchableOpacity>
-  )
+  );
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
@@ -243,7 +285,31 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
         {searchQuery ? "Try adjusting your search" : "No contacts available"}
       </Text>
     </View>
-  )
+  );
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredContacts.length / CONTACTS_PER_PAGE),
+  );
+
+  useEffect(() => {
+    setContactsPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
+
+  const paginatedContacts = useMemo(() => {
+    const start = (contactsPage - 1) * CONTACTS_PER_PAGE;
+    return filteredContacts.slice(start, start + CONTACTS_PER_PAGE);
+  }, [filteredContacts, contactsPage]);
+
+  const showPagination = filteredContacts.length > CONTACTS_PER_PAGE;
+
+  const handleNextPage = () => {
+    setContactsPage((prev) => Math.min(prev + 1, totalPages));
+  };
+
+  const handlePreviousPage = () => {
+    setContactsPage((prev) => Math.max(prev - 1, 1));
+  };
 
   const ProfileDetailsModal = () => (
     <Modal
@@ -264,8 +330,34 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
           {selectedContact && (
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.modalProfileSection}>
-                <View style={[styles.modalAvatar, { backgroundColor: getAvatarColor(selectedContact.role) }]}>
-                  <Text style={styles.modalAvatarText}>{getInitials(selectedContact.name)}</Text>
+                <View
+                  style={[
+                    styles.modalAvatar,
+                    {
+                      backgroundColor: getAvatarColor(selectedContact.role),
+                      overflow: "hidden",
+                    },
+                  ]}
+                >
+                  {selectedContact.profileImage ? (
+                    <Image
+                      source={{
+                        uri:
+                          typeof selectedContact.profileImage === "string"
+                            ? selectedContact.profileImage
+                            : `${API_BASE_URL}/${selectedContact.profileImage.path.replace(/\\/g, "/")}`,
+                      }}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        resizeMode: "cover",
+                      }}
+                    />
+                  ) : (
+                    <Text style={styles.modalAvatarText}>
+                      {getInitials(selectedContact.name)}
+                    </Text>
+                  )}
                 </View>
                 <Text style={styles.modalName}>{selectedContact.name}</Text>
                 <Text style={styles.modalRole}>{selectedContact.role}</Text>
@@ -276,7 +368,9 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
                   <Ionicons name="call-outline" size={20} color="#D11B31" />
                   <View style={styles.modalInfoTextContainer}>
                     <Text style={styles.modalLabel}>Phone</Text>
-                    <Text style={styles.modalValue}>{selectedContact.phone}</Text>
+                    <Text style={styles.modalValue}>
+                      {selectedContact.phone}
+                    </Text>
                   </View>
                 </View>
 
@@ -284,16 +378,24 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
                   <Ionicons name="mail-outline" size={20} color="#D11B31" />
                   <View style={styles.modalInfoTextContainer}>
                     <Text style={styles.modalLabel}>Email</Text>
-                    <Text style={styles.modalValue}>{selectedContact.email}</Text>
+                    <Text style={styles.modalValue}>
+                      {selectedContact.email}
+                    </Text>
                   </View>
                 </View>
 
                 {selectedContact.role === "Organization" && (
                   <View style={styles.modalInfoRow}>
-                    <Ionicons name="location-outline" size={20} color="#D11B31" />
+                    <Ionicons
+                      name="location-outline"
+                      size={20}
+                      color="#D11B31"
+                    />
                     <View style={styles.modalInfoTextContainer}>
                       <Text style={styles.modalLabel}>Address</Text>
-                      <Text style={styles.modalValue}>{selectedContact.address}</Text>
+                      <Text style={styles.modalValue}>
+                        {selectedContact.address}
+                      </Text>
                     </View>
                   </View>
                 )}
@@ -301,44 +403,70 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
                 {selectedContact.role === "Donor" && (
                   <>
                     <View style={styles.modalInfoRow}>
-                      <Ionicons name="water-outline" size={20} color="#D11B31" />
+                      <Ionicons
+                        name="water-outline"
+                        size={20}
+                        color="#D11B31"
+                      />
                       <View style={styles.modalInfoTextContainer}>
                         <Text style={styles.modalLabel}>Blood Type</Text>
-                        <Text style={styles.modalValue}>{selectedContact.bloodType}</Text>
+                        <Text style={styles.modalValue}>
+                          {selectedContact.bloodType}
+                        </Text>
                       </View>
                     </View>
                     <View style={styles.modalInfoRow}>
-                      <Ionicons name="pulse-outline" size={20} color="#D11B31" />
+                      <Ionicons
+                        name="pulse-outline"
+                        size={20}
+                        color="#D11B31"
+                      />
                       <View style={styles.modalInfoTextContainer}>
                         <Text style={styles.modalLabel}>Status</Text>
-                        <Text style={[styles.modalValue, { color: selectedContact.isAvailable ? "#10B981" : "#D11B31" }]}>
-                          {selectedContact.isAvailable ? "Available" : "Unavailable"}
+                        <Text
+                          style={[
+                            styles.modalValue,
+                            {
+                              color: selectedContact.isAvailable
+                                ? "#10B981"
+                                : "#D11B31",
+                            },
+                          ]}
+                        >
+                          {selectedContact.isAvailable
+                            ? "Available"
+                            : "Unavailable"}
                         </Text>
                       </View>
                     </View>
                   </>
                 )}
 
-                {selectedContact.role === "Organization" && selectedContact.inventory && (
-                  <View style={styles.inventorySection}>
-                    <Text style={styles.inventoryTitle}>Blood Inventory</Text>
-                    <View style={styles.inventoryGrid}>
-                      {selectedContact.inventory.map((inv, index) => (
-                        <View key={index} style={styles.inventoryItem}>
-                          <Text style={styles.inventoryBloodType}>{inv.bloodType}</Text>
-                          <Text style={styles.inventoryUnits}>{inv.units} Units</Text>
-                        </View>
-                      ))}
+                {selectedContact.role === "Organization" &&
+                  selectedContact.inventory && (
+                    <View style={styles.inventorySection}>
+                      <Text style={styles.inventoryTitle}>Blood Inventory</Text>
+                      <View style={styles.inventoryGrid}>
+                        {selectedContact.inventory.map((inv, index) => (
+                          <View key={index} style={styles.inventoryItem}>
+                            <Text style={styles.inventoryBloodType}>
+                              {inv.bloodType}
+                            </Text>
+                            <Text style={styles.inventoryUnits}>
+                              {inv.units} Units
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
                     </View>
-                  </View>
-                )}
+                  )}
               </View>
 
               <TouchableOpacity
                 style={styles.modalChatBtn}
                 onPress={() => {
-                  setDetailsModalVisible(false)
-                  handleChatPress(selectedContact)
+                  setDetailsModalVisible(false);
+                  handleChatPress(selectedContact);
                 }}
               >
                 <Ionicons name="chatbubble-outline" size={20} color="#FFFFFF" />
@@ -349,7 +477,7 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
         </View>
       </View>
     </Modal>
-  )
+  );
 
   if (loading && !refreshing) {
     return (
@@ -357,7 +485,7 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
         <ActivityIndicator size="large" color="#D11B31" />
         <Text style={styles.loadingText}>Loading contacts...</Text>
       </View>
-    )
+    );
   }
 
   return (
@@ -368,7 +496,7 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
           <Ionicons name="search" size={20} color="#9CA3AF" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by name or city..."
+            placeholder="Search by name, city, or blood type..."
             placeholderTextColor="#9CA3AF"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -388,20 +516,27 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
         {userType === "gainer" && (
           <View style={styles.categoryToggleContainer}>
             <TouchableOpacity
-              style={[styles.categoryTab, activeCategory === "organization" && styles.activeCategoryTab]}
+              style={[
+                styles.categoryTab,
+                activeCategory === "organization" && styles.activeCategoryTab,
+              ]}
               onPress={() => setActiveCategory("organization")}
             >
               <Text
                 style={[
                   styles.categoryTabText,
-                  activeCategory === "organization" && styles.activeCategoryTabText,
+                  activeCategory === "organization" &&
+                    styles.activeCategoryTabText,
                 ]}
               >
                 Organizations
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.categoryTab, activeCategory === "donor" && styles.activeCategoryTab]}
+              style={[
+                styles.categoryTab,
+                activeCategory === "donor" && styles.activeCategoryTab,
+              ]}
               onPress={() => setActiveCategory("donor")}
             >
               <Text
@@ -418,28 +553,74 @@ export default function ContactsScreen({ hideNavigation = false }: ContactsScree
 
         <View style={styles.resultsHeader}>
           <Text style={styles.resultsCount}>
-            {filteredContacts.length} {filteredContacts.length === 1 ? "Contact" : "Contacts"}
+            {filteredContacts.length}{" "}
+            {filteredContacts.length === 1 ? "Contact" : "Contacts"}
           </Text>
         </View>
       </View>
 
       {/* Contacts List */}
       <FlatList
-        data={filteredContacts}
+        data={paginatedContacts}
         renderItem={renderContactCard}
         keyExtractor={(item, index) => `${item.id}-${index}`}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={renderEmptyState}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#D11B31"]} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#D11B31"]}
+          />
+        }
       />
+
+      {showPagination && (
+        <View
+          style={[
+            styles.paginationContainer,
+            !hideNavigation && { marginBottom: verticalScale(86) },
+          ]}
+        >
+          <TouchableOpacity
+            style={[
+              styles.paginationButton,
+              contactsPage <= 1 && styles.paginationButtonDisabled,
+            ]}
+            onPress={handlePreviousPage}
+            disabled={contactsPage <= 1}
+          >
+            <Ionicons name="chevron-back" size={18} color="#D11B31" />
+            <Text style={styles.paginationButtonText}>Previous</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.paginationInfo}>
+            Page {contactsPage} of {totalPages}
+          </Text>
+
+          <TouchableOpacity
+            style={[
+              styles.paginationButton,
+              contactsPage >= totalPages && styles.paginationButtonDisabled,
+            ]}
+            onPress={handleNextPage}
+            disabled={contactsPage >= totalPages}
+          >
+            <Text style={styles.paginationButtonText}>Next</Text>
+            <Ionicons name="chevron-forward" size={18} color="#D11B31" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <ProfileDetailsModal />
 
       {/* Navigation Bar */}
-      {!hideNavigation && <Navigation userType={userType} initialTab="contact" />}
+      {!hideNavigation && (
+        <Navigation userType={userType} initialTab="contact" />
+      )}
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -471,11 +652,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#F3F4F6",
     borderRadius: moderateScale(25),
-    paddingHorizontal: scale(16),
-    paddingVertical: verticalScale(10),
+    paddingHorizontal: scale(12),
+    paddingVertical: verticalScale(12),
     gap: scale(8),
-    borderWidth: 1.5,
-    borderColor: "#E5E7EB",
+    borderWidth: 2,
+    borderColor: "#D11B31",
   },
   searchInput: {
     flex: 1,
@@ -484,7 +665,7 @@ const styles = StyleSheet.create({
   },
   resultsHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "center",
     alignItems: "center",
     marginTop: verticalScale(12),
   },
@@ -496,6 +677,38 @@ const styles = StyleSheet.create({
   listContainer: {
     padding: scale(16),
     paddingBottom: verticalScale(100),
+  },
+  paginationContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: scale(16),
+    paddingVertical: verticalScale(10),
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+  },
+  paginationButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: scale(4),
+    paddingVertical: verticalScale(8),
+    paddingHorizontal: scale(10),
+    borderRadius: moderateScale(10),
+    backgroundColor: "#FEE2E2",
+  },
+  paginationButtonDisabled: {
+    opacity: 0.45,
+  },
+  paginationButtonText: {
+    fontSize: moderateScale(13),
+    fontWeight: "700",
+    color: "#D11B31",
+  },
+  paginationInfo: {
+    fontSize: moderateScale(13),
+    color: "#6B7280",
+    fontWeight: "600",
   },
   contactCard: {
     backgroundColor: "#FFFFFF",
@@ -784,4 +997,4 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(16),
     fontWeight: "700",
   },
-})
+});
