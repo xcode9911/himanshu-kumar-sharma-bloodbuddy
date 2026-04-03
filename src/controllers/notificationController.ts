@@ -41,13 +41,19 @@ export const getNotifications = async (req: Request, res: Response) => {
 
 export const markAsRead = async (req: Request, res: Response) => {
     const { notificationId } = req.params;
+    const notificationIdParam = Array.isArray(notificationId) ? notificationId[0] : notificationId;
+    const parsedNotificationId = Number.parseInt(notificationIdParam ?? '0', 10);
     const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
     if (authError || !authUserId) return res.status(401).json({ message: 'Unauthorized' });
+
+    if (Number.isNaN(parsedNotificationId)) {
+        return res.status(400).json({ message: 'Invalid notification ID' });
+    }
 
     try {
         await prisma.notification.update({
             where: {
-                NotificationId: parseInt(notificationId || "0"),
+                NotificationId: parsedNotificationId,
                 UserId: authUserId // Ensure user owns the notification
             },
             data: { IsRead: true }
@@ -77,13 +83,19 @@ export const markAllAsRead = async (req: Request, res: Response) => {
 
 export const deleteNotification = async (req: Request, res: Response) => {
     const { notificationId } = req.params;
+    const notificationIdParam = Array.isArray(notificationId) ? notificationId[0] : notificationId;
+    const parsedNotificationId = Number.parseInt(notificationIdParam ?? '0', 10);
     const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
     if (authError || !authUserId) return res.status(401).json({ message: 'Unauthorized' });
+
+    if (Number.isNaN(parsedNotificationId)) {
+        return res.status(400).json({ message: 'Invalid notification ID' });
+    }
 
     try {
         await prisma.notification.delete({
             where: {
-                NotificationId: parseInt(notificationId || "0"),
+                NotificationId: parsedNotificationId,
                 UserId: authUserId
             }
         });

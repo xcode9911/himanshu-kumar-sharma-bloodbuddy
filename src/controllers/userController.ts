@@ -1152,13 +1152,14 @@ export const refreshToken = async (req: Request, res: Response) => {
 export const getUserProfile = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
+    const userIdParam = Array.isArray(userId) ? userId[0] : userId;
 
-    if (!userId) {
+    if (!userIdParam) {
       return res.status(400).json({ message: "User ID is required" });
     }
 
     const user = await prisma.user.findUnique({
-      where: { UserId: userId },
+      where: { UserId: userIdParam },
       include: {
         donor: true,
         gainer: true,

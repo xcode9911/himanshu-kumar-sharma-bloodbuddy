@@ -283,6 +283,7 @@ export const cancelBloodRequest = async (req: Request, res: Response) => {
 // Get Bookings by Specific User ID
 export const getBookingsByUserId = async (req: Request, res: Response) => {
     const { userId } = req.params;
+    const userIdParam = Array.isArray(userId) ? userId[0] : userId;
     const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
 
     // Check authentication
@@ -298,14 +299,14 @@ export const getBookingsByUserId = async (req: Request, res: Response) => {
         return res.status(401).json({ message: 'User ID not found in token' });
     }
 
-    if (!userId) {
+    if (!userIdParam) {
         return res.status(400).json({ message: 'User ID parameter is required' });
     }
 
     try {
         // Fetch the user by the provided userId
         const user = await prisma.user.findUnique({
-            where: { UserId: userId },
+            where: { UserId: userIdParam },
             include: { gainer: true, organization: true, donor: true },
         });
 

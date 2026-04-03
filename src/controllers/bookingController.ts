@@ -111,6 +111,8 @@ export const createBooking = async (req: Request, res: Response) => {
 
 export const approveBooking = async (req: Request, res: Response) => {
     const { requestId } = req.params;
+    const requestIdParam = Array.isArray(requestId) ? requestId[0] : requestId;
+    const parsedRequestId = Number.parseInt(requestIdParam ?? "", 10);
     const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
 
     if (authError || !authUserId) {
@@ -129,12 +131,12 @@ export const approveBooking = async (req: Request, res: Response) => {
 
         const organizationId = user.organization.OrganizationId;
 
-        if (!requestId) {
+        if (!requestIdParam || Number.isNaN(parsedRequestId)) {
             return res.status(400).json({ message: 'Request ID is required' });
         }
 
         const request = await prisma.bloodRequest.findUnique({
-            where: { RequestId: parseInt(requestId) },
+            where: { RequestId: parsedRequestId },
             include: { gainer: { select: { UserId: true } } }
         });
 
@@ -176,7 +178,7 @@ export const approveBooking = async (req: Request, res: Response) => {
             );
 
             const updatedRequest = await tx.bloodRequest.update({
-                where: { RequestId: parseInt(requestId as string) },
+                where: { RequestId: parsedRequestId },
                 data: { Status: 'Approved' }
             });
 
@@ -228,6 +230,8 @@ export const approveBooking = async (req: Request, res: Response) => {
 
 export const rejectBooking = async (req: Request, res: Response) => {
     const { requestId } = req.params;
+    const requestIdParam = Array.isArray(requestId) ? requestId[0] : requestId;
+    const parsedRequestId = Number.parseInt(requestIdParam ?? "", 10);
     const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
 
     if (authError || !authUserId) {
@@ -246,12 +250,12 @@ export const rejectBooking = async (req: Request, res: Response) => {
 
         const organizationId = user.organization.OrganizationId;
 
-        if (!requestId) {
+        if (!requestIdParam || Number.isNaN(parsedRequestId)) {
             return res.status(400).json({ message: 'Request ID is required' });
         }
 
         const request = await prisma.bloodRequest.findUnique({
-            where: { RequestId: parseInt(requestId) },
+            where: { RequestId: parsedRequestId },
             include: { gainer: { select: { UserId: true } } }
         });
 
@@ -260,7 +264,7 @@ export const rejectBooking = async (req: Request, res: Response) => {
         }
 
         const updatedRequest = await prisma.bloodRequest.update({
-            where: { RequestId: parseInt(requestId as string) },
+            where: { RequestId: parsedRequestId },
             data: { Status: 'Rejected' }
         });
 

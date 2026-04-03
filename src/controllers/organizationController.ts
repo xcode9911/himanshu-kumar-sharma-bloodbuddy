@@ -145,6 +145,7 @@ export const addOrUpdateInventory = async (req: Request, res: Response) => {
 // Check if blood type exists in inventory (for frontend confirmation)
 export const checkBloodTypeExists = async (req: Request, res: Response) => {
   const { bloodType } = req.params;
+  const bloodTypeParam = Array.isArray(bloodType) ? bloodType[0] : bloodType;
   const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
 
   // Check authentication
@@ -164,7 +165,7 @@ export const checkBloodTypeExists = async (req: Request, res: Response) => {
     return res.status(401).json({ message: "User ID not found in token" });
   }
 
-  if (!bloodType) {
+  if (!bloodTypeParam) {
     return res
       .status(400)
       .json({ message: "Blood type parameter is required" });
@@ -192,13 +193,13 @@ export const checkBloodTypeExists = async (req: Request, res: Response) => {
   const existingInventory = await prisma.inventory.findFirst({
     where: {
       OrganizationId: organizationId,
-      BloodType: bloodType,
+      BloodType: bloodTypeParam,
     },
   });
 
   return res.status(200).json({
     exists: !!existingInventory,
-    bloodType: bloodType,
+    bloodType: bloodTypeParam,
     currentUnits: existingInventory?.Units || 0,
   });
 };
@@ -263,6 +264,7 @@ export const getInventory = async (req: Request, res: Response) => {
 // Delete inventory entry
 export const deleteInventory = async (req: Request, res: Response) => {
   const { bloodType } = req.params;
+  const bloodTypeParam = Array.isArray(bloodType) ? bloodType[0] : bloodType;
   const { userId: authUserId, error: authError } = getUserIdFromAuthHeader(req);
 
   // Check authentication
@@ -282,7 +284,7 @@ export const deleteInventory = async (req: Request, res: Response) => {
     return res.status(401).json({ message: "User ID not found in token" });
   }
 
-  if (!bloodType) {
+  if (!bloodTypeParam) {
     return res
       .status(400)
       .json({ message: "Blood type parameter is required" });
@@ -310,13 +312,13 @@ export const deleteInventory = async (req: Request, res: Response) => {
   const inventory = await prisma.inventory.findFirst({
     where: {
       OrganizationId: organizationId,
-      BloodType: bloodType,
+      BloodType: bloodTypeParam,
     },
   });
 
   if (!inventory) {
     return res.status(404).json({
-      message: `No inventory found for blood type ${bloodType}`,
+      message: `No inventory found for blood type ${bloodTypeParam}`,
     });
   }
 
@@ -326,7 +328,7 @@ export const deleteInventory = async (req: Request, res: Response) => {
 
   await logInventoryChange(
     organizationId,
-    bloodType,
+    bloodTypeParam,
     -inventory.Units,
     "Remove",
     inventory.Units,
@@ -334,7 +336,7 @@ export const deleteInventory = async (req: Request, res: Response) => {
   );
 
   return res.status(200).json({
-    message: `Inventory for blood type ${bloodType} deleted successfully`,
+    message: `Inventory for blood type ${bloodTypeParam} deleted successfully`,
   });
 };
 
