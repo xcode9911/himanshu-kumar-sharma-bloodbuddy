@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { API_BASE_URL } from "../config/api";
 import { moderateScale, scale, verticalScale } from "../utils/responsive";
+import { getCleanImageUrl } from "../utils/image";
 
 const { width } = Dimensions.get("window");
 
@@ -62,10 +63,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ visible, onClose, userData 
 
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                         <View style={styles.profileHeader}>
-                            <View style={[styles.avatar, (userData.ProfileImage || userData.profileImage) && { borderWidth: 0 }]}>
-                                {userData.ProfileImage || userData.profileImage ? (
+                            <View style={[styles.avatar, getCleanImageUrl(userData.ProfileImage || userData.profileImage) && { borderWidth: 0 }]}>
+                                {getCleanImageUrl(userData.ProfileImage || userData.profileImage) ? (
                                     <Image 
-                                        source={{ uri: `${API_BASE_URL}/${(userData.ProfileImage || userData.profileImage).path}` }}
+                                        source={{ uri: getCleanImageUrl(userData.ProfileImage || userData.profileImage)! }}
                                         style={styles.avatarImage}
                                     />
                                 ) : (

@@ -13,6 +13,7 @@ import {
     View,
 } from "react-native";
 import { moderateScale, scale, verticalScale } from "../../utils/responsive";
+import { getCleanImageUrl } from "../../utils/image";
 
 export default function CampaignDetailsScreen() {
   const router = useRouter();
@@ -236,9 +237,7 @@ export default function CampaignDetailsScreen() {
         <View style={styles.imageContainer}>
           <Image
             source={{
-              uri:
-                posterUrlValue ||
-                "https://placehold.co/600x400/png?text=Campaign",
+              uri: getCleanImageUrl(posterUrlValue) || "https://placehold.co/600x400/png?text=Campaign",
             }}
             style={styles.image}
           />
@@ -252,8 +251,8 @@ export default function CampaignDetailsScreen() {
               <View style={styles.orgIcon}>
                 <Image
                   source={
-                    organizationLogoValue
-                      ? { uri: organizationLogoValue }
+                    getCleanImageUrl(organizationLogoValue)
+                      ? { uri: getCleanImageUrl(organizationLogoValue)! }
                       : require("../../assets/images/logo.png")
                   }
                   style={styles.orgLogo}

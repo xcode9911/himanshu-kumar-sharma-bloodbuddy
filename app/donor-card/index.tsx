@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Path, Svg } from "react-native-svg";
 import { API_BASE_URL, API_ENDPOINTS } from "../../config/api";
 import { moderateScale, scale, verticalScale } from "../../utils/responsive";
+import { getCleanImageUrl } from "../../utils/image";
 let ViewShot: any = View;
 try {
   const RNVViewShot = require("react-native-view-shot");
@@ -37,54 +38,7 @@ const { width, height } = Dimensions.get("window");
 
 type FlowState = "intro" | "sleeve" | "revealed";
 
-const resolveProfileImageUri = (rawImage: any): string | null => {
-  if (!rawImage) return null;
-
-  const toAbsoluteUrl = (value: string): string | null => {
-    const normalized = value.trim().replace(/\\/g, "/");
-    if (!normalized) return null;
-    if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
-      return normalized;
-    }
-    return `${API_BASE_URL}/${normalized.replace(/^\/+/, "")}`;
-  };
-
-  if (typeof rawImage === "string") {
-    const trimmed = rawImage.trim();
-    if (!trimmed) return null;
-
-    // Some APIs return image metadata as a JSON string: {"path":"uploads/..."}
-    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        const parsedPath =
-          parsed?.path || parsed?.Path || parsed?.url || parsed?.Url;
-        if (typeof parsedPath === "string") {
-          return toAbsoluteUrl(parsedPath);
-        }
-      } catch (error) {
-        // Keep raw string fallback if it's not valid JSON.
-      }
-    }
-
-    return toAbsoluteUrl(trimmed);
-  }
-
-  if (typeof rawImage === "object") {
-    const possiblePath =
-      rawImage.path ||
-      rawImage.Path ||
-      rawImage.url ||
-      rawImage.Url ||
-      rawImage.location ||
-      rawImage.Location;
-    if (typeof possiblePath === "string") {
-      return toAbsoluteUrl(possiblePath);
-    }
-  }
-
-  return null;
-};
+// Removed resolveProfileImageUri in favor of getCleanImageUrl utility
 
 export default function SwipeableDonorCardScreen() {
   const router = useRouter();
@@ -99,7 +53,7 @@ export default function SwipeableDonorCardScreen() {
   const [flowState, setFlowState] = useState<FlowState>("intro");
   const flowStateRef = useRef<FlowState>("intro");
 
-  const profileImageUri = resolveProfileImageUri(
+  const profileImageUri = getCleanImageUrl(
     userData?.profileImage ||
       userData?.ProfileImage ||
       userData?.donor?.profileImage ||

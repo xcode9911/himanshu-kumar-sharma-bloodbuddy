@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -10,6 +11,7 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
+    Vibration,
     View,
 } from "react-native";
 import { API_ENDPOINTS } from "../config/api";
@@ -132,6 +134,15 @@ const normalizeLocationPoint = (location: any) => {
   return { lat, lng };
 };
 
+const triggerEmergencyFeedback = async () => {
+  try {
+    Vibration.vibrate([0, 400, 200, 600]);
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  } catch (error) {
+    console.log("Emergency feedback trigger failed:", error);
+  }
+};
+
 const Navigation = ({
   userType: propUserType,
   initialTab,
@@ -202,6 +213,7 @@ const Navigation = ({
         setIncomingEmergency(normalized);
         setEmergencyStatusModalVisible(true);
         startSOSAnimation();
+        triggerEmergencyFeedback();
       });
     }
 
@@ -221,6 +233,7 @@ const Navigation = ({
       socket.on("emergencyAccepted", (data: any) => {
         const name = data.donorName || data.DonorName;
         const phone = data.donorPhone || data.DonorPhone;
+        triggerEmergencyFeedback();
         Alert.alert(
           "Emergency Accepted! 🚨",
           `${name} is coming to help! Phone: ${phone}`,
@@ -241,6 +254,7 @@ const Navigation = ({
 
       socket.off("emergencyDonorCancelled");
       socket.on("emergencyDonorCancelled", (data: any) => {
+        triggerEmergencyFeedback();
         Alert.alert(
           "Donor Backed Out",
           "The donor who accepted your emergency request has cancelled. We are looking for other donors...",

@@ -17,6 +17,7 @@ import Navigation from "../../components/Navigation";
 import { API_ENDPOINTS } from "../../config/api";
 import { getUserFriendlyError } from "../../utils/errorMessages";
 import { moderateScale, scale, verticalScale } from "../../utils/responsive";
+import { getCleanImageUrl } from "../../utils/image";
 
 interface Campaign {
   id: string;
@@ -301,9 +302,7 @@ export default function CampaignListScreen() {
       >
         <Image
           source={{
-            uri:
-              item.posterUrl ||
-              "https://placehold.co/600x400/png?text=Campaign",
+            uri: getCleanImageUrl(item.posterUrl) || "https://placehold.co/600x400/png?text=Campaign",
           }}
           style={styles.cardImage}
         />

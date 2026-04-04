@@ -29,6 +29,7 @@ import {
     type AppleMapMarker,
     type GoogleMapMarker,
 } from "../../utils/expoMapsRuntime";
+import { getCleanImageUrl } from "../../utils/image";
 import { moderateScale, scale, verticalScale } from "../../utils/responsive";
 
 interface InviteOrganization extends CollaborateOrganization {
@@ -96,9 +97,11 @@ export default function CreateCampaignScreen() {
   const [endTime, setEndTime] = useState(
     params.endDate ? new Date(params.endDate as string) : new Date(),
   );
-  const [imageUri, setImageUri] = useState<string | null>(
-    (params.posterUrl as string) || null,
-  );
+  const [imageUri, setImageUri] = useState<string | null>(() => {
+    const rawPosterUrl =
+      typeof params.posterUrl === "string" ? params.posterUrl : null;
+    return getCleanImageUrl(rawPosterUrl);
+  });
 
   // Picker visibility
   const [showStartDate, setShowStartDate] = useState(false);

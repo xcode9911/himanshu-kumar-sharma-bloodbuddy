@@ -59,8 +59,8 @@ const NEPAL_DEFAULT_COORDINATES = {
 };
 
 type Coordinates = {
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
 };
 
 export default function RegisterScreen() {
@@ -500,7 +500,14 @@ export default function RegisterScreen() {
 
   const buildLocationLabel = async (coordinates: Coordinates) => {
     try {
-      const places = await Location.reverseGeocodeAsync(coordinates);
+      if (coordinates.latitude === undefined || coordinates.longitude === undefined) {
+        return "Unknown location";
+      }
+
+      const places = await Location.reverseGeocodeAsync({
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+      });
       const place = places?.[0];
 
       if (place) {
@@ -521,7 +528,7 @@ export default function RegisterScreen() {
       console.log("Reverse geocoding failed:", error);
     }
 
-    return `${coordinates.latitude.toFixed(6)}, ${coordinates.longitude.toFixed(6)}`;
+    return `${(coordinates.latitude ?? 0).toFixed(6)}, ${(coordinates.longitude ?? 0).toFixed(6)}`;
   };
 
   useEffect(() => {
@@ -972,8 +979,8 @@ export default function RegisterScreen() {
               </TouchableOpacity>
               {organizationCoordinates && (
                 <Text style={styles.mapCoordinateText}>
-                  Lat {organizationCoordinates.latitude.toFixed(6)} | Lng{" "}
-                  {organizationCoordinates.longitude.toFixed(6)}
+                  Lat {(organizationCoordinates?.latitude ?? 0).toFixed(6)} | Lng{" "}
+                  {(organizationCoordinates?.longitude ?? 0).toFixed(6)}
                 </Text>
               )}
               {locationTouched && !!locationError && (

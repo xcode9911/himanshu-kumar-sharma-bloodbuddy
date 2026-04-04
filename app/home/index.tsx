@@ -1,18 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter, useFocusEffect } from "expo-router";
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Animated,
-  Dimensions,
-  Image,
-  ImageBackground,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    Animated,
+    Dimensions,
+    Image,
+    ImageBackground,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import AddInventorySvg from "../../assets/images/add-inventory.svg";
 import AppointmentsSvg from "../../assets/images/appointments.svg";
@@ -28,9 +28,10 @@ import KhaltiPaymentModal from "../../components/KhaltiPaymentModal";
 import Navigation from "../../components/Navigation";
 import QuickDonationModal from "../../components/QuickDonationModal";
 import ReceivedPaymentsModal from "../../components/ReceivedPaymentsModal";
-import { API_ENDPOINTS, API_BASE_URL } from "../../config/api";
+import { API_ENDPOINTS } from "../../config/api";
 import { connectSocket } from "../../config/socket";
 import { useNotifications } from "../../context/NotificationContext";
+import { getCleanImageUrl } from "../../utils/image";
 import { moderateScale, scale, verticalScale } from "../../utils/responsive";
 
 type UserType = "gainer" | "donor" | "organization";
@@ -60,7 +61,8 @@ export default function Home() {
   const [userId, setUserId] = useState<string | null>(null);
 
   // Modal States
-  const [addInventoryModalVisible, setAddInventoryModalVisible] = useState(false);
+  const [addInventoryModalVisible, setAddInventoryModalVisible] =
+    useState(false);
   const [inventoryBloodType, setInventoryBloodType] = useState("AB+");
   const [inventoryUnits, setInventoryUnits] = useState("");
 
@@ -68,13 +70,15 @@ export default function Home() {
 
   const [donationModalVisible, setDonationModalVisible] = useState(false);
   const [donorBloodType, setDonorBloodType] = useState<string>("A+");
-  const [appointmentsModalVisible, setAppointmentsModalVisible] = useState(false);
+  const [appointmentsModalVisible, setAppointmentsModalVisible] =
+    useState(false);
 
   // Payment State
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   const [esewaModalVisible, setEsewaModalVisible] = useState(false);
   const [paymentBooking, setPaymentBooking] = useState<any>(null);
-  const [receivedPaymentsModalVisible, setReceivedPaymentsModalVisible] = useState(false);
+  const [receivedPaymentsModalVisible, setReceivedPaymentsModalVisible] =
+    useState(false);
 
   // Bookings Data
   const [bookings, setBookings] = useState<any[]>([]);
@@ -97,7 +101,11 @@ export default function Home() {
   // Always initialize 5 animations to use hooks correctly
   const slideAnim = useRef(new Animated.Value(1)).current; // Scale anim
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const staggeredAnims = useRef(Array(5).fill(0).map(() => new Animated.Value(0))).current;
+  const staggeredAnims = useRef(
+    Array(5)
+      .fill(0)
+      .map(() => new Animated.Value(0)),
+  ).current;
 
   // Banner State
   const bannerImages = [
@@ -119,10 +127,10 @@ export default function Home() {
       fetchCampaigns();
       fetchLeaderboard();
       fetchActiveDonorsCount();
-      if (userType === 'organization') {
+      if (userType === "organization") {
         fetchOrganizationStats();
       }
-    }, [userType])
+    }, [userType]),
   );
 
   const fetchOrganizationStats = async () => {
@@ -131,12 +139,16 @@ export default function Home() {
       if (!token) return;
 
       const invResponse = await fetch(API_ENDPOINTS.GET_INVENTORY, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (invResponse.ok) {
         const data = await invResponse.json();
         const list = data?.inventory || data?.data || data?.items || data || [];
-        const total = list.reduce((sum: number, item: any) => sum + Number(item.units || item.quantity || 0), 0);
+        const total = list.reduce(
+          (sum: number, item: any) =>
+            sum + Number(item.units || item.quantity || 0),
+          0,
+        );
         setTotalOrgUnits(total);
       }
 
@@ -145,29 +157,23 @@ export default function Home() {
         const parsed = JSON.parse(userDataStr);
         if (parsed.id) {
           const profileRes = await fetch(API_ENDPOINTS.GET_PROFILE(parsed.id), {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
           });
           if (profileRes.ok) {
             const profileData = await profileRes.json();
-            
-            const fetchedOrgName = profileData.user?.organization?.OrganizationName || profileData.user?.OrganizationName;
+
+            const fetchedOrgName =
+              profileData.user?.organization?.OrganizationName ||
+              profileData.user?.OrganizationName;
             if (fetchedOrgName) {
               setUserName(fetchedOrgName);
             }
 
-            const pImage = profileData.user?.ProfileImage || profileData.user?.profileImage || profileData.user?.organization?.ProfileImage;
-            if (pImage) {
-               if (typeof pImage === 'string') {
-                 try {
-                   const imgObj = JSON.parse(pImage);
-                   if (imgObj?.path) setOrgProfileImage(`${API_BASE_URL}/${imgObj.path.replace(/\\/g, '/')}`);
-                 } catch(e) {
-                   setOrgProfileImage(pImage);
-                 }
-               } else if (pImage?.path) {
-                 setOrgProfileImage(`${API_BASE_URL}/${pImage.path.replace(/\\/g, '/')}`);
-               }
-            }
+            const pImage =
+              profileData.user?.ProfileImage ||
+              profileData.user?.profileImage ||
+              profileData.user?.organization?.ProfileImage;
+            setOrgProfileImage(getCleanImageUrl(pImage));
           }
         }
       }
@@ -183,7 +189,8 @@ export default function Home() {
   }, [userType]);
 
   useEffect(() => {
-    const imagesLength = activeCampaigns.length > 0 ? activeCampaigns.length : bannerImages.length;
+    const imagesLength =
+      activeCampaigns.length > 0 ? activeCampaigns.length : bannerImages.length;
 
     const interval = setInterval(() => {
       setBannerIndex((prev) => {
@@ -209,22 +216,33 @@ export default function Home() {
       }).start();
 
       // Staggered entrance for each circle
-      Animated.stagger(150, staggeredAnims.map(anim =>
-        Animated.spring(anim, {
-          toValue: 1,
-          tension: 40,
-          friction: 8,
-          useNativeDriver: true
-        })
-      )).start();
+      Animated.stagger(
+        150,
+        staggeredAnims.map((anim) =>
+          Animated.spring(anim, {
+            toValue: 1,
+            tension: 40,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+        ),
+      ).start();
 
       // Slow pulse for the whole group after they've entered
       Animated.loop(
         Animated.sequence([
           Animated.delay(1500),
-          Animated.timing(slideAnim, { toValue: 1.03, duration: 1500, useNativeDriver: true }),
-          Animated.timing(slideAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
-        ])
+          Animated.timing(slideAnim, {
+            toValue: 1.03,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(slideAnim, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+        ]),
       ).start();
     }
   }, [userType]);
@@ -236,26 +254,15 @@ export default function Home() {
         const parsed = JSON.parse(userData);
         const role = (parsed.role || "donor").toLowerCase();
         setUserType(role as UserType);
-        
-        if (role === 'organization') {
+
+        if (role === "organization") {
           setUserName(parsed.organizationName || parsed.fullName || "Org");
           const pImg = parsed.ProfileImage || parsed.profileImage;
-          if (pImg) {
-            if (typeof pImg === 'string') {
-              try {
-                const imgObj = JSON.parse(pImg);
-                if (imgObj?.path) setOrgProfileImage(`${API_BASE_URL}/${imgObj.path.replace(/\\/g, '/')}`);
-              } catch(e) {
-                setOrgProfileImage(pImg);
-              }
-            } else if (pImg?.path) {
-              setOrgProfileImage(`${API_BASE_URL}/${pImg.path.replace(/\\/g, '/')}`);
-            }
-          }
+          setOrgProfileImage(getCleanImageUrl(pImg));
         } else {
           setUserName(parsed.fullName || "User");
         }
-        
+
         setUserId(parsed.id || null);
         setDonorBloodType(parsed.bloodType || "A+");
         if (parsed.id) {
@@ -282,9 +289,12 @@ export default function Home() {
       const user = JSON.parse(userData);
       const role = (user.role || "").toLowerCase();
 
-      const bookingResponse = await fetch(API_ENDPOINTS.GET_USER_BOOKINGS(user.id), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const bookingResponse = await fetch(
+        API_ENDPOINTS.GET_USER_BOOKINGS(user.id),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       const bookingData = await bookingResponse.json();
 
       const donationResponse = await fetch(API_ENDPOINTS.GET_DONATIONS, {
@@ -294,52 +304,76 @@ export default function Home() {
 
       let combinedData: any[] = [];
 
-      if (bookingResponse.ok && bookingData.requests) combinedData = [...combinedData, ...bookingData.requests.map((r: any) => ({
-        requestId: r.RequestId,
-        type: 'booking',
-        userName: role === 'organization' ? (r.gainer?.user?.FullName || "User") : (r.organization?.OrganizationName || "Blood Bank"),
-        bloodType: r.BloodType,
-        units: r.Units,
-        createdAt: r.RequestDate,
-        status: r.Status?.toLowerCase() || "pending",
-        paymentStatus: r.PaymentStatus || "Pending",
-        phone: r.gainer?.user?.Phone || "N/A"
-      }))];
+      if (bookingResponse.ok && bookingData.requests)
+        combinedData = [
+          ...combinedData,
+          ...bookingData.requests.map((r: any) => ({
+            requestId: r.RequestId,
+            type: "booking",
+            userName:
+              role === "organization"
+                ? r.gainer?.user?.FullName || "User"
+                : r.organization?.OrganizationName || "Blood Bank",
+            bloodType: r.BloodType,
+            units: r.Units,
+            createdAt: r.RequestDate,
+            status: r.Status?.toLowerCase() || "pending",
+            paymentStatus: r.PaymentStatus || "Pending",
+            phone: r.gainer?.user?.Phone || "N/A",
+          })),
+        ];
 
       if (donationResponse.ok && donationData.offers) {
         const offers = donationData.offers;
-        if (role === 'donor') {
-          combinedData = [...combinedData, ...offers.map((o: any) => ({
-            requestId: o.OfferId,
-            type: 'donation',
-            userName: o.organization?.OrganizationName || "Blood Bank",
-            bloodType: o.donor?.BloodType || "Unknown",
-            units: 1,
-            createdAt: o.CreatedAt,
-            status: o.Status?.toLowerCase() || "pending",
-            paymentStatus: "N/A"
-          }))];
-        } else if (role === 'organization') {
-          const history = offers.filter((o: any) => o.Status?.toLowerCase() !== 'pending');
-          combinedData = [...combinedData, ...history.map((o: any) => ({
-            requestId: o.OfferId,
-            type: 'donation',
-            userName: o.donor?.user?.FullName || "Donor",
-            bloodType: o.donor?.BloodType || "Unknown",
-            units: 1,
-            createdAt: o.CreatedAt,
-            status: o.Status?.toLowerCase() || "pending",
-            phone: o.donor?.user?.Phone || "N/A",
-            paymentStatus: "N/A"
-          }))];
+        if (role === "donor") {
+          combinedData = [
+            ...combinedData,
+            ...offers.map((o: any) => ({
+              requestId: o.OfferId,
+              type: "donation",
+              userName: o.organization?.OrganizationName || "Blood Bank",
+              bloodType: o.donor?.BloodType || "Unknown",
+              units: 1,
+              createdAt: o.CreatedAt,
+              status: o.Status?.toLowerCase() || "pending",
+              paymentStatus: "N/A",
+            })),
+          ];
+        } else if (role === "organization") {
+          const history = offers.filter(
+            (o: any) => o.Status?.toLowerCase() !== "pending",
+          );
+          combinedData = [
+            ...combinedData,
+            ...history.map((o: any) => ({
+              requestId: o.OfferId,
+              type: "donation",
+              userName: o.donor?.user?.FullName || "Donor",
+              bloodType: o.donor?.BloodType || "Unknown",
+              units: 1,
+              createdAt: o.CreatedAt,
+              status: o.Status?.toLowerCase() || "pending",
+              phone: o.donor?.user?.Phone || "N/A",
+              paymentStatus: "N/A",
+            })),
+          ];
         }
       }
 
-      combinedData.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      combinedData.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
       setBookings(combinedData);
 
-      if (role === 'organization' && bookingResponse.ok && bookingData.requests) {
-        const pendingCount = bookingData.requests.filter((r: any) => r.Status === "Pending").length;
+      if (
+        role === "organization" &&
+        bookingResponse.ok &&
+        bookingData.requests
+      ) {
+        const pendingCount = bookingData.requests.filter(
+          (r: any) => r.Status === "Pending",
+        ).length;
         setUnreadCount(pendingCount);
       }
     } catch (error) {
@@ -360,9 +394,12 @@ export default function Home() {
       if (response.ok) {
         const data = await response.json();
         // Filter only active campaigns that have a poster
-        const campaignsWithPosters = (data.campaigns || []).filter(
-          (c: any) => c.status === 'active' && c.posterUrl
-        );
+        const campaignsWithPosters = (data.campaigns || [])
+          .map((c: any) => ({
+            ...c,
+            posterUrl: getCleanImageUrl(c.posterUrl),
+          }))
+          .filter((c: any) => c.status === "active" && c.posterUrl);
         setActiveCampaigns(campaignsWithPosters);
       }
     } catch (error) {
@@ -395,25 +432,30 @@ export default function Home() {
       });
       if (response.ok) {
         const data = await response.json();
-        const availableDonors = (data.donors || []).filter((d: any) => d.isAvailable === true);
+        const availableDonors = (data.donors || []).filter(
+          (d: any) => d.isAvailable === true,
+        );
         setActiveDonorsCount(availableDonors.length);
 
-        const colors = ['#D11B31', '#2563EB', '#059669', '#7C3AED'];
-        const bubbles = availableDonors.slice(0, 4).map((d: any, index: number) => {
-          let initials = '??';
-          if (d.name) {
-            initials = d.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
-          }
-          return {
-            id: d.donorId || d.id || `${index}`,
-            initials,
-            profileImage: typeof d.profileImage === 'string'
-              ? d.profileImage
-              : d.profileImage?.path
-                ? `${API_BASE_URL}/${d.profileImage.path.replace(/\\/g, '/')}`
-                : null
-          };
-        });
+        const colors = ["#D11B31", "#2563EB", "#059669", "#7C3AED"];
+        const bubbles = availableDonors
+          .slice(0, 4)
+          .map((d: any, index: number) => {
+            let initials = "??";
+            if (d.name) {
+              initials = d.name
+                .split(" ")
+                .map((n: string) => n[0])
+                .join("")
+                .toUpperCase()
+                .slice(0, 2);
+            }
+            return {
+              id: d.donorId || d.id || `${index}`,
+              initials,
+              profileImage: getCleanImageUrl(d.profileImage),
+            };
+          });
         setActiveDonorBubbles(bubbles);
       }
     } catch (error) {
@@ -447,9 +489,14 @@ export default function Home() {
               const data = await response.json();
               if (response.ok) {
                 Alert.alert("Success", "Booking cancelled successfully");
-                setBookings((prev) => prev.filter((b) => b.requestId !== requestId));
+                setBookings((prev) =>
+                  prev.filter((b) => b.requestId !== requestId),
+                );
               } else {
-                Alert.alert("Error", data.message || "Failed to cancel booking");
+                Alert.alert(
+                  "Error",
+                  data.message || "Failed to cancel booking",
+                );
               }
             } catch (error) {
               console.log("Cancel error:", error);
@@ -457,7 +504,7 @@ export default function Home() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -492,24 +539,79 @@ export default function Home() {
     switch (userType) {
       case "gainer":
         return [
-          { icon: "search", label: "Find Donors", route: "/search", color: "#D11B31" },
-          { icon: "location", label: "Nearby", route: "/nearby", color: "#E63946" },
-          { icon: "calendar", label: "Requests", route: "/requests", color: "#F77F00" },
-          { icon: "medical", label: "Emergency", route: "/emergency", color: "#DC2626" },
+          {
+            icon: "search",
+            label: "Find Donors",
+            route: "/search",
+            color: "#D11B31",
+          },
+          {
+            icon: "location",
+            label: "Nearby",
+            route: "/nearby",
+            color: "#E63946",
+          },
+          {
+            icon: "calendar",
+            label: "Requests",
+            route: "/requests",
+            color: "#F77F00",
+          },
+          {
+            icon: "medical",
+            label: "Emergency",
+            route: "/emergency",
+            color: "#DC2626",
+          },
         ];
       case "donor":
         return [
-          { icon: "donation", label: "Donate", route: "/donate", color: "#D11B31" },
-          { icon: "schedule", label: "Schedule", route: "/schedule", color: "#F77F00" },
-          { icon: "history", label: "History", route: "/history", color: "#6366F1" },
+          {
+            icon: "donation",
+            label: "Donate",
+            route: "/donate",
+            color: "#D11B31",
+          },
+          {
+            icon: "schedule",
+            label: "Schedule",
+            route: "/schedule",
+            color: "#F77F00",
+          },
+          {
+            icon: "history",
+            label: "History",
+            route: "/history",
+            color: "#6366F1",
+          },
           { icon: "camp", label: "Camp", route: "/campaign", color: "#10B981" },
         ];
       case "organization":
         return [
-          { icon: "add-inventory", label: "Add", route: "/add-blood", color: "#D11B31" },
-          { icon: "donation", label: "Requests", route: "/schedule", color: "#F77F00" },
-          { icon: "appointments", label: "Appointment", route: "/bookings", color: "#6366F1" },
-          { icon: "payment", label: "Payments", route: "/payments", color: "#10B981" },
+          {
+            icon: "add-inventory",
+            label: "Add",
+            route: "/add-blood",
+            color: "#D11B31",
+          },
+          {
+            icon: "donation",
+            label: "Requests",
+            route: "/schedule",
+            color: "#F77F00",
+          },
+          {
+            icon: "appointments",
+            label: "Appointment",
+            route: "/bookings",
+            color: "#6366F1",
+          },
+          {
+            icon: "payment",
+            label: "Payments",
+            route: "/payments",
+            color: "#10B981",
+          },
           { icon: "camp", label: "Camp", route: "/campaign", color: "#10B981" },
         ];
     }
@@ -524,9 +626,12 @@ export default function Home() {
 
   const getWelcomeMessage = () => {
     switch (userType) {
-      case "gainer": return "Find donors and manage your blood requests";
-      case "donor": return "Your next donation can save a life";
-      case "organization": return "Manage inventory and coordinate donations";
+      case "gainer":
+        return "Find donors and manage your blood requests";
+      case "donor":
+        return "Your next donation can save a life";
+      case "organization":
+        return "Manage inventory and coordinate donations";
     }
   };
 
@@ -539,9 +644,9 @@ export default function Home() {
   return (
     <View style={{ flex: 1 }}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity 
-          testID="homeProfileCard" 
-          onPress={() => router.push("/profile")} 
+        <TouchableOpacity
+          testID="homeProfileCard"
+          onPress={() => router.push("/profile")}
           activeOpacity={0.8}
         >
           <ImageBackground
@@ -563,7 +668,11 @@ export default function Home() {
                   }}
                 >
                   <View style={styles.iconContainer}>
-                    <Ionicons name="notifications-outline" size={moderateScale(24)} color="#FFFFFF" />
+                    <Ionicons
+                      name="notifications-outline"
+                      size={moderateScale(24)}
+                      color="#FFFFFF"
+                    />
                     {unreadCount > 0 && (
                       <View style={styles.badgeContainer}>
                         <Text style={styles.badgeText}>{unreadCount}</Text>
@@ -584,14 +693,41 @@ export default function Home() {
                   <View style={styles.headerStatItem}>
                     <View style={{ marginBottom: verticalScale(4) }}>
                       {orgProfileImage ? (
-                        <Image 
-                          source={{ uri: orgProfileImage }} 
-                          style={{ width: moderateScale(32), height: moderateScale(32), borderRadius: moderateScale(16), resizeMode: 'cover' }} 
+                        <Image
+                          source={{ uri: orgProfileImage }}
+                          style={{
+                            width: moderateScale(32),
+                            height: moderateScale(32),
+                            borderRadius: moderateScale(16),
+                            resizeMode: "cover",
+                          }}
                         />
                       ) : (
-                        <View style={{ width: moderateScale(32), height: moderateScale(32), borderRadius: moderateScale(16), backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center' }}>
-                          <Text style={{ fontSize: moderateScale(14), fontWeight: '700', color: '#D11B31' }}>
-                            {userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'UK'}
+                        <View
+                          style={{
+                            width: moderateScale(32),
+                            height: moderateScale(32),
+                            borderRadius: moderateScale(16),
+                            backgroundColor: "#FEE2E2",
+                            justifyContent: "center",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: moderateScale(14),
+                              fontWeight: "700",
+                              color: "#D11B31",
+                            }}
+                          >
+                            {userName
+                              ? userName
+                                  .split(" ")
+                                  .map((n) => n[0])
+                                  .join("")
+                                  .toUpperCase()
+                                  .slice(0, 2)
+                              : "UK"}
                           </Text>
                         </View>
                       )}
@@ -600,7 +736,10 @@ export default function Home() {
                   <View style={styles.headerStatDivider} />
                   <View style={styles.headerStatItem}>
                     <Text style={styles.headerStatValue}>
-                      {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      {new Date().toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                      })}
                     </Text>
                     <Text style={styles.headerStatLabel}>Today</Text>
                   </View>
@@ -613,7 +752,9 @@ export default function Home() {
                   </View>
                   <View style={styles.headerStatDivider} />
                   <View style={styles.headerStatItem}>
-                    <Text style={styles.headerStatValue}>{donorBloodType || "A+"}</Text>
+                    <Text style={styles.headerStatValue}>
+                      {donorBloodType || "A+"}
+                    </Text>
                     <Text style={styles.headerStatLabel}>My Blood</Text>
                   </View>
                   <View style={styles.headerStatDivider} />
@@ -623,7 +764,12 @@ export default function Home() {
                   </View>
                 </View>
               ) : (
-                <Animated.View style={[styles.gainerHeaderPromo, { opacity: fadeAnim, transform: [{ scale: slideAnim }] }]}>
+                <Animated.View
+                  style={[
+                    styles.gainerHeaderPromo,
+                    { opacity: fadeAnim, transform: [{ scale: slideAnim }] },
+                  ]}
+                >
                   <View style={styles.avatarGroup}>
                     {activeDonorBubbles.map((bubble, index) => (
                       <Animated.View
@@ -640,20 +786,27 @@ export default function Home() {
                               {
                                 translateX: staggeredAnims[index].interpolate({
                                   inputRange: [0, 1],
-                                  outputRange: [20, 0]
-                                })
-                              }
-                            ]
-                          }
+                                  outputRange: [20, 0],
+                                }),
+                              },
+                            ],
+                          },
                         ]}
                       >
                         {bubble.profileImage ? (
                           <Image
                             source={{ uri: bubble.profileImage }}
-                            style={{ width: '100%', height: '100%', borderRadius: moderateScale(20), resizeMode: 'cover' }}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              borderRadius: moderateScale(20),
+                              resizeMode: "cover",
+                            }}
                           />
                         ) : (
-                          <Text style={styles.avatarText}>{bubble.initials}</Text>
+                          <Text style={styles.avatarText}>
+                            {bubble.initials}
+                          </Text>
                         )}
                       </Animated.View>
                     ))}
@@ -666,17 +819,23 @@ export default function Home() {
                             zIndex: 0,
                             marginLeft: -scale(15),
                             opacity: staggeredAnims[4],
-                            transform: [{ scale: staggeredAnims[4] }]
-                          }
+                            transform: [{ scale: staggeredAnims[4] }],
+                          },
                         ]}
                       >
-                        <Text style={styles.avatarText}>+{activeDonorsCount - activeDonorBubbles.length}</Text>
+                        <Text style={styles.avatarText}>
+                          +{activeDonorsCount - activeDonorBubbles.length}
+                        </Text>
                       </Animated.View>
                     )}
                   </View>
                   <View style={styles.activeInfoContainer}>
-                    <Text style={styles.activeDonorsTitle}>{activeDonorsCount} Active Donors</Text>
-                    <Text style={styles.activeDonorsSub}>Ready to help you</Text>
+                    <Text style={styles.activeDonorsTitle}>
+                      {activeDonorsCount} Active Donors
+                    </Text>
+                    <Text style={styles.activeDonorsSub}>
+                      Ready to help you
+                    </Text>
                   </View>
                 </Animated.View>
               )}
@@ -695,43 +854,60 @@ export default function Home() {
               onMomentumScrollEnd={handleBannerMomentum}
               style={[styles.bannerSlider, { width: bannerWidth }]}
             >
-              {activeCampaigns.length > 0 ? (
-                activeCampaigns.map((campaign, index) => (
-                  <TouchableOpacity
-                    key={campaign.id || index}
-                    style={[styles.bannerSlide, { width: bannerWidth }]}
-                    activeOpacity={0.9}
-                    onPress={() => router.push("/campaign")}
-                  >
-                    <Image
-                      source={{ uri: campaign.posterUrl }}
-                      style={styles.bannerImage}
-                      resizeMode="cover"
-                    />
-                    <View style={styles.campaignOverlay}>
-                      <Text style={styles.campaignTitle} numberOfLines={1}>{campaign.title}</Text>
-                      <Text style={styles.campaignOrg} numberOfLines={1}>{campaign.organizationName}</Text>
-                    </View>
-                    <View style={styles.bannerBadge}>
-                      <Text style={styles.bannerBadgeText}>Live</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))
-              ) : (
-                bannerImages.map((source, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[styles.bannerSlide, { width: bannerWidth }]}
-                    onPress={() => router.push("/campaign")}
-                  >
-                    <Image source={source} style={styles.bannerImage} resizeMode="cover" />
-                  </TouchableOpacity>
-                ))
-              )}
+              {activeCampaigns.length > 0
+                ? activeCampaigns.map((campaign, index) => (
+                    <TouchableOpacity
+                      key={campaign.id || index}
+                      style={[styles.bannerSlide, { width: bannerWidth }]}
+                      activeOpacity={0.9}
+                      onPress={() => router.push("/campaign")}
+                    >
+                      <Image
+                        source={{
+                          uri: getCleanImageUrl(campaign.posterUrl) || "",
+                        }}
+                        style={styles.bannerImage}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.campaignOverlay}>
+                        <Text style={styles.campaignTitle} numberOfLines={1}>
+                          {campaign.title}
+                        </Text>
+                        <Text style={styles.campaignOrg} numberOfLines={1}>
+                          {campaign.organizationName}
+                        </Text>
+                      </View>
+                      <View style={styles.bannerBadge}>
+                        <Text style={styles.bannerBadgeText}>Live</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))
+                : bannerImages.map((source, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[styles.bannerSlide, { width: bannerWidth }]}
+                      onPress={() => router.push("/campaign")}
+                    >
+                      <Image
+                        source={source}
+                        style={styles.bannerImage}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                  ))}
             </ScrollView>
             <View style={styles.bannerDots}>
-              {(activeCampaigns.length > 0 ? activeCampaigns : bannerImages).map((_, idx) => (
-                <View key={idx} style={[styles.bannerDot, idx === bannerIndex && styles.bannerDotActive]} />
+              {(activeCampaigns.length > 0
+                ? activeCampaigns
+                : bannerImages
+              ).map((_, idx) => (
+                <View
+                  key={idx}
+                  style={[
+                    styles.bannerDot,
+                    idx === bannerIndex && styles.bannerDotActive,
+                  ]}
+                />
               ))}
             </View>
           </View>
@@ -740,9 +916,13 @@ export default function Home() {
         {/* Leaderboard Podium Section */}
         {leaderboard.length > 0 && (
           <View style={[styles.section, { marginTop: verticalScale(16) }]}>
-            <Text style={[styles.sectionTitle, { marginBottom: verticalScale(10) }]}>Top Donors</Text>
-            <TouchableOpacity 
-              style={styles.podiumContainer} 
+            <Text
+              style={[styles.sectionTitle, { marginBottom: verticalScale(10) }]}
+            >
+              Top Donors
+            </Text>
+            <TouchableOpacity
+              style={styles.podiumContainer}
               activeOpacity={0.9}
               onPress={() => router.push("/leaderboard")}
             >
@@ -751,21 +931,40 @@ export default function Home() {
                 {leaderboard[1] && (
                   <View style={[styles.podiumItem, styles.podium2]}>
                     <View style={styles.avatarWrapper}>
-                      <Image source={require("../../assets/images/rank2.png")} style={styles.avatarPlaceholder} />
+                      <Image
+                        source={require("../../assets/images/rank2.png")}
+                        style={styles.avatarPlaceholder}
+                      />
                     </View>
-                    <Text style={styles.podiumName} numberOfLines={1}>{leaderboard[1].name}</Text>
-                    <Text style={styles.podiumCount}>{leaderboard[1].yearlyCount} times</Text>
+                    <Text style={styles.podiumName} numberOfLines={1}>
+                      {leaderboard[1].name}
+                    </Text>
+                    <Text style={styles.podiumCount}>
+                      {leaderboard[1].yearlyCount} times
+                    </Text>
                   </View>
                 )}
 
                 {/* 1st Place */}
                 {leaderboard[0] && (
                   <View style={[styles.podiumItem, styles.podium1]}>
-                    <View style={[styles.avatarWrapper, styles.avatarWrapperLarge]}>
-                      <Image source={require("../../assets/images/rank1.png")} style={styles.avatarPlaceholderLarge} />
+                    <View
+                      style={[styles.avatarWrapper, styles.avatarWrapperLarge]}
+                    >
+                      <Image
+                        source={require("../../assets/images/rank1.png")}
+                        style={styles.avatarPlaceholderLarge}
+                      />
                     </View>
-                    <Text style={[styles.podiumName, styles.podiumNameLarge]} numberOfLines={1}>{leaderboard[0].name}</Text>
-                    <Text style={[styles.podiumCount, styles.podiumCountLarge]}>{leaderboard[0].yearlyCount} times</Text>
+                    <Text
+                      style={[styles.podiumName, styles.podiumNameLarge]}
+                      numberOfLines={1}
+                    >
+                      {leaderboard[0].name}
+                    </Text>
+                    <Text style={[styles.podiumCount, styles.podiumCountLarge]}>
+                      {leaderboard[0].yearlyCount} times
+                    </Text>
                   </View>
                 )}
 
@@ -773,10 +972,17 @@ export default function Home() {
                 {leaderboard[2] && (
                   <View style={[styles.podiumItem, styles.podium3]}>
                     <View style={styles.avatarWrapper}>
-                      <Image source={require("../../assets/images/rank3.png")} style={styles.avatarPlaceholder} />
+                      <Image
+                        source={require("../../assets/images/rank3.png")}
+                        style={styles.avatarPlaceholder}
+                      />
                     </View>
-                    <Text style={styles.podiumName} numberOfLines={1}>{leaderboard[2].name}</Text>
-                    <Text style={styles.podiumCount}>{leaderboard[2].yearlyCount} times</Text>
+                    <Text style={styles.podiumName} numberOfLines={1}>
+                      {leaderboard[2].name}
+                    </Text>
+                    <Text style={styles.podiumCount}>
+                      {leaderboard[2].yearlyCount} times
+                    </Text>
                   </View>
                 )}
               </View>
@@ -796,15 +1002,26 @@ export default function Home() {
                     style={styles.quickActionItem}
                     activeOpacity={0.85}
                     onPress={() => {
-                      if (userType === "organization" && action.icon === "add-inventory") {
+                      if (
+                        userType === "organization" &&
+                        action.icon === "add-inventory"
+                      ) {
                         setAddInventoryModalVisible(true);
                         return;
                       }
-                      if (userType === "donor" && (action.icon === "donation" || action.label === "Donate")) {
+                      if (
+                        userType === "donor" &&
+                        (action.icon === "donation" ||
+                          action.label === "Donate")
+                      ) {
                         setDonationModalVisible(true);
                         return;
                       }
-                      if (userType === "organization" && (action.icon === "appointments" || action.label === "Appointment")) {
+                      if (
+                        userType === "organization" &&
+                        (action.icon === "appointments" ||
+                          action.label === "Appointment")
+                      ) {
                         setAppointmentsModalVisible(true);
                         return;
                       }
@@ -817,24 +1034,51 @@ export default function Home() {
                   >
                     <View style={styles.quickActionIcon}>
                       {action.icon === "donation" ? (
-                        <DonationSvg width={moderateScale(30)} height={moderateScale(30)} />
+                        <DonationSvg
+                          width={moderateScale(30)}
+                          height={moderateScale(30)}
+                        />
                       ) : action.icon === "schedule" ? (
-                        <ScheduleSvg width={moderateScale(30)} height={moderateScale(30)} />
+                        <ScheduleSvg
+                          width={moderateScale(30)}
+                          height={moderateScale(30)}
+                        />
                       ) : action.icon === "history" ? (
-                        <HistorySvg width={moderateScale(30)} height={moderateScale(30)} />
+                        <HistorySvg
+                          width={moderateScale(30)}
+                          height={moderateScale(30)}
+                        />
                       ) : action.icon === "camp" ? (
-                        <CampSvg width={moderateScale(30)} height={moderateScale(30)} />
+                        <CampSvg
+                          width={moderateScale(30)}
+                          height={moderateScale(30)}
+                        />
                       ) : action.icon === "add-inventory" ? (
-                        <AddInventorySvg width={moderateScale(30)} height={moderateScale(30)} />
+                        <AddInventorySvg
+                          width={moderateScale(30)}
+                          height={moderateScale(30)}
+                        />
                       ) : action.icon === "appointments" ? (
-                        <AppointmentsSvg width={moderateScale(30)} height={moderateScale(30)} />
+                        <AppointmentsSvg
+                          width={moderateScale(30)}
+                          height={moderateScale(30)}
+                        />
                       ) : action.icon === "payment" ? (
-                        <PaymentSvg width={moderateScale(30)} height={moderateScale(30)} />
+                        <PaymentSvg
+                          width={moderateScale(30)}
+                          height={moderateScale(30)}
+                        />
                       ) : (
-                        <Ionicons name={action.icon as any} size={moderateScale(28)} color={action.color} />
+                        <Ionicons
+                          name={action.icon as any}
+                          size={moderateScale(28)}
+                          color={action.color}
+                        />
                       )}
                     </View>
-                    <Text style={styles.quickActionLabel} numberOfLines={2}>{action.label}</Text>
+                    <Text style={styles.quickActionLabel} numberOfLines={2}>
+                      {action.label}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -847,7 +1091,8 @@ export default function Home() {
           <View style={styles.quoteSection}>
             <View style={styles.quoteCard}>
               <Text style={styles.quoteText}>
-                "Let’s take a moment to appreciate you — because your kindness saves lives."
+                "Let’s take a moment to appreciate you — because your kindness
+                saves lives."
               </Text>
             </View>
           </View>
@@ -866,32 +1111,60 @@ export default function Home() {
             ) : bookings.length > 0 ? (
               <View style={styles.bookingsList}>
                 {bookings.slice(0, 2).map((booking, index) => (
-                  <View key={`${booking.type}-${booking.requestId}` || index} style={styles.bookingCard}>
+                  <View
+                    key={`${booking.type}-${booking.requestId}` || index}
+                    style={styles.bookingCard}
+                  >
                     <View style={styles.bookingCardHeader}>
                       <View style={styles.bloodBadge}>
-                        <Text style={styles.bloodBadgeText}>{booking.bloodType}</Text>
+                        <Text style={styles.bloodBadgeText}>
+                          {booking.bloodType}
+                        </Text>
                       </View>
                       <View style={styles.bookingInfo}>
-                        <Text style={styles.orgNameLabel}>{booking.userName || "Hospital/Bank"}</Text>
+                        <Text style={styles.orgNameLabel}>
+                          {booking.userName || "Hospital/Bank"}
+                        </Text>
                         <Text style={styles.bookingDate}>
                           {new Date(booking.createdAt).toLocaleDateString()}
                         </Text>
                       </View>
-                      <View style={[
-                        styles.statusBadge,
-                        { backgroundColor: booking.status === 'approved' ? '#ECFDF5' : booking.status === 'rejected' ? '#FEF2F2' : '#FFFBEB' }
-                      ]}>
-                        <Text style={[
-                          styles.statusText,
-                          { color: booking.status === 'approved' ? '#059669' : booking.status === 'rejected' ? '#DC2626' : '#D97706' }
-                        ]}>
-                          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          {
+                            backgroundColor:
+                              booking.status === "approved"
+                                ? "#ECFDF5"
+                                : booking.status === "rejected"
+                                  ? "#FEF2F2"
+                                  : "#FFFBEB",
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.statusText,
+                            {
+                              color:
+                                booking.status === "approved"
+                                  ? "#059669"
+                                  : booking.status === "rejected"
+                                    ? "#DC2626"
+                                    : "#D97706",
+                            },
+                          ]}
+                        >
+                          {booking.status.charAt(0).toUpperCase() +
+                            booking.status.slice(1)}
                         </Text>
                       </View>
                     </View>
                     <View style={styles.bookingCardFooter}>
-                      <Text style={styles.unitsCount}>{booking.units} Units Requested</Text>
-                      {booking.status === 'pending' && (
+                      <Text style={styles.unitsCount}>
+                        {booking.units} Units Requested
+                      </Text>
+                      {booking.status === "pending" && (
                         <TouchableOpacity
                           style={styles.cancelButton}
                           onPress={() => handleCancelBooking(booking.requestId)}
@@ -899,31 +1172,35 @@ export default function Home() {
                           <Text style={styles.cancelButtonText}>Cancel</Text>
                         </TouchableOpacity>
                       )}
-                      {booking.status === 'approved' && (
+                      {booking.status === "approved" && (
                         <View style={styles.paymentActions}>
                           <TouchableOpacity
                             style={[styles.payButton]}
                             onPress={() => handlePayNow(booking)}
                           >
                             <Image
-                              source={require('../../assets/images/khalti-logo.png')}
+                              source={require("../../assets/images/khalti-logo.png")}
                               style={styles.khaltiLogo}
                             />
                             <Text style={[styles.payButtonText]}>
-                              {booking.paymentStatus === 'Paid' ? 'Paid' : 'Pay Now'}
+                              {booking.paymentStatus === "Paid"
+                                ? "Paid"
+                                : "Pay Now"}
                             </Text>
                           </TouchableOpacity>
 
-                          {booking.paymentStatus !== 'Paid' && (
+                          {booking.paymentStatus !== "Paid" && (
                             <TouchableOpacity
                               style={[styles.esewaButton]}
                               onPress={() => handleEsewaPay(booking)}
                             >
                               <Image
-                                source={require('../../assets/images/esewa-logo.png')}
+                                source={require("../../assets/images/esewa-logo.png")}
                                 style={styles.esewaLogo}
                               />
-                              <Text style={[styles.esewaButtonText]}>Pay Now</Text>
+                              <Text style={[styles.esewaButtonText]}>
+                                Pay Now
+                              </Text>
                             </TouchableOpacity>
                           )}
                         </View>
@@ -937,13 +1214,19 @@ export default function Home() {
                     onPress={() => router.push("/bookings")}
                   >
                     <Text style={styles.viewMoreText}>View More</Text>
-                    <Ionicons name="chevron-forward" size={moderateScale(16)} color="#D11B31" />
+                    <Ionicons
+                      name="chevron-forward"
+                      size={moderateScale(16)}
+                      color="#D11B31"
+                    />
                   </TouchableOpacity>
                 )}
               </View>
             ) : (
               <View style={styles.activityCard}>
-                <Text style={styles.emptyText}>You haven't made any blood bookings yet.</Text>
+                <Text style={styles.emptyText}>
+                  You haven't made any blood bookings yet.
+                </Text>
               </View>
             )}
           </View>
@@ -1001,8 +1284,6 @@ export default function Home() {
     </View>
   );
 }
-
-
 
 const styles = StyleSheet.create({
   container: {
@@ -1122,9 +1403,9 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: verticalScale(12),
   },
   viewAllText: {
@@ -1133,12 +1414,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   podiumContainer: {
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
     borderRadius: moderateScale(16),
     paddingVertical: scale(8),
     paddingHorizontal: scale(12),
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: "#F3F4F6",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -1146,14 +1427,14 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   podiumWrapper: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "center",
     height: verticalScale(95),
   },
   podiumItem: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: "center",
   },
   podium1: {
     zIndex: 2,
@@ -1166,14 +1447,14 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   avatarWrapper: {
-    position: 'relative',
+    position: "relative",
     marginBottom: verticalScale(8),
   },
   avatarWrapperLarge: {
     marginBottom: verticalScale(12),
   },
   podiumBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: -scale(10),
     right: -scale(5),
     width: scale(24),
@@ -1190,42 +1471,42 @@ const styles = StyleSheet.create({
     width: moderateScale(44),
     height: moderateScale(44),
     borderRadius: moderateScale(22),
-    resizeMode: 'contain',
+    resizeMode: "contain",
   },
   avatarPlaceholderLarge: {
     width: moderateScale(60),
     height: moderateScale(60),
     borderRadius: moderateScale(30),
-    resizeMode: 'contain',
+    resizeMode: "contain",
   },
   avatarPlaceholderText: {
     fontSize: moderateScale(20),
-    fontWeight: '800',
-    color: '#000',
+    fontWeight: "800",
+    color: "#000",
   },
   avatarPlaceholderTextLarge: {
     fontSize: moderateScale(28),
-    color: '#D11B31',
+    color: "#D11B31",
   },
   podiumName: {
     fontSize: moderateScale(12),
-    fontWeight: '700',
-    color: '#1F2937',
+    fontWeight: "700",
+    color: "#1F2937",
     maxWidth: scale(80),
-    textAlign: 'center',
+    textAlign: "center",
   },
   podiumNameLarge: {
     fontSize: moderateScale(14),
-    color: '#111827',
+    color: "#111827",
   },
   podiumCount: {
     fontSize: moderateScale(10),
-    color: '#6B7280',
-    fontWeight: '600',
+    color: "#6B7280",
+    fontWeight: "600",
   },
   podiumCountLarge: {
     fontSize: moderateScale(12),
-    color: '#D11B31',
+    color: "#D11B31",
   },
   bannerContainer: {
     alignItems: "center",
@@ -1262,38 +1543,38 @@ const styles = StyleSheet.create({
     backgroundColor: "#D11B31",
   },
   campaignOverlay: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: "rgba(0,0,0,0.6)",
     padding: scale(10),
   },
   campaignTitle: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: moderateScale(14),
-    fontWeight: '700',
+    fontWeight: "700",
   },
   campaignOrg: {
-    color: '#E5E7EB',
+    color: "#E5E7EB",
     fontSize: moderateScale(12),
-    fontWeight: '500',
+    fontWeight: "500",
   },
   bannerBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: verticalScale(12),
     right: scale(12),
-    backgroundColor: '#10B981',
+    backgroundColor: "#10B981",
     paddingHorizontal: scale(10),
     paddingVertical: verticalScale(4),
     borderRadius: moderateScale(8),
     zIndex: 2,
   },
   bannerBadgeText: {
-    color: '#FFF',
+    color: "#FFF",
     fontSize: moderateScale(10),
-    fontWeight: '700',
-    textTransform: 'uppercase',
+    fontWeight: "700",
+    textTransform: "uppercase",
   },
   quickActionsContainer: {
     backgroundColor: "#FFFFFF",
@@ -1337,27 +1618,27 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   gainerHeaderPromo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
     padding: scale(12),
     borderRadius: moderateScale(20),
     marginTop: verticalScale(10),
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: "rgba(255, 255, 255, 0.3)",
   },
   avatarGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   avatarCircle: {
     width: moderateScale(34),
     height: moderateScale(34),
     borderRadius: moderateScale(17),
     borderWidth: 2,
-    borderColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1365,24 +1646,24 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   moreCircle: {
-    backgroundColor: '#374151',
+    backgroundColor: "#374151",
   },
   avatarText: {
-    color: '#FFF',
+    color: "#FFF",
     fontSize: moderateScale(10),
-    fontWeight: '800',
+    fontWeight: "800",
   },
   activeInfoContainer: {
     marginLeft: scale(12),
     flex: 1,
   },
   activeDonorsTitle: {
-    color: '#FFF',
+    color: "#FFF",
     fontSize: moderateScale(14),
-    fontWeight: '700',
+    fontWeight: "700",
   },
   activeDonorsSub: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: "rgba(255, 255, 255, 0.8)",
     fontSize: moderateScale(10),
     marginTop: verticalScale(1),
   },
@@ -1483,8 +1764,8 @@ const styles = StyleSheet.create({
     color: "#DC2626",
   },
   payButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: scale(16),
     paddingVertical: verticalScale(8),
     borderRadius: moderateScale(12),
@@ -1493,12 +1774,12 @@ const styles = StyleSheet.create({
     borderColor: "#D32F2F",
     gap: 8,
     minWidth: scale(150),
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   khaltiLogo: {
     width: 20,
     height: 20,
-    resizeMode: 'contain',
+    resizeMode: "contain",
   },
   payButtonText: {
     fontSize: moderateScale(13),
@@ -1506,8 +1787,8 @@ const styles = StyleSheet.create({
     color: "#D32F2F",
   },
   esewaButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: scale(16),
     paddingVertical: verticalScale(8),
     borderRadius: moderateScale(12),
@@ -1516,12 +1797,12 @@ const styles = StyleSheet.create({
     borderColor: "#41A124",
     gap: 8,
     minWidth: scale(150),
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   esewaLogo: {
     width: 20,
     height: 20,
-    resizeMode: 'contain',
+    resizeMode: "contain",
   },
   esewaButtonText: {
     fontSize: moderateScale(13),
@@ -1529,9 +1810,9 @@ const styles = StyleSheet.create({
     color: "#41A124",
   },
   paymentActions: {
-    flexDirection: 'column',
+    flexDirection: "column",
     gap: 8,
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   activityCard: {
     backgroundColor: "#FFFFFF",
@@ -1573,9 +1854,9 @@ const styles = StyleSheet.create({
     height: verticalScale(100),
   },
   viewMoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: verticalScale(12),
     paddingVertical: verticalScale(8),
   },

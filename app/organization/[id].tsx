@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import DonationSvg from "../../assets/images/donation.svg";
 import { API_ENDPOINTS } from "../../config/api";
+import { getCleanImageUrl } from "../../utils/image";
 import { moderateScale, scale, verticalScale } from "../../utils/responsive";
 
 export default function OrganizationDetailScreen() {
@@ -27,6 +28,7 @@ export default function OrganizationDetailScreen() {
   const [userRole, setUserRole] = useState("");
   const [donorBloodType, setDonorBloodType] = useState("");
   const logoUrl = typeof params.logoUrl === "string" ? params.logoUrl : "";
+  const cleanedLogoUrl = getCleanImageUrl(logoUrl);
 
   const bloodTypes = params.bloodTypes
     ? JSON.parse(params.bloodTypes as string)
@@ -157,8 +159,11 @@ export default function OrganizationDetailScreen() {
       >
         <View style={styles.profileCard}>
           <View style={styles.avatarContainer}>
-            {logoUrl ? (
-              <Image source={{ uri: logoUrl }} style={styles.avatarImage} />
+            {cleanedLogoUrl ? (
+              <Image
+                source={{ uri: cleanedLogoUrl }}
+                style={styles.avatarImage}
+              />
             ) : (
               <Ionicons name="business" size={40} color="#D11B31" />
             )}

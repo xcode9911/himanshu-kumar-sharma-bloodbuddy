@@ -19,13 +19,14 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { API_BASE_URL, API_ENDPOINTS } from "../../config/api";
+import { API_ENDPOINTS } from "../../config/api";
 import { getUserFriendlyError } from "../../utils/errorMessages";
 import {
     loadExpoMapsModule,
     type AppleMapMarker,
     type GoogleMapMarker,
 } from "../../utils/expoMapsRuntime";
+import { getCleanImageUrl } from "../../utils/image";
 import { moderateScale, scale, verticalScale } from "../../utils/responsive";
 
 type UserData = {
@@ -54,8 +55,8 @@ const NEPAL_DEFAULT_COORDINATES = {
 };
 
 type Coordinates = {
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
 };
 
 const parseCoordinate = (value: any): number | undefined => {
@@ -152,14 +153,7 @@ const prefillFormFields = (
   setters.setOrganizationName(user.organizationName || "");
   setters.setContact(user.contact || "");
 
-  if (typeof user.profileImage === "string") {
-    console.log("Setting profile image from DB directly:", user.profileImage);
-    setters.setProfileImage(user.profileImage);
-  } else if (user.profileImage && user.profileImage.path) {
-    const fullUrl = `${API_BASE_URL}/${user.profileImage.path}`;
-    console.log("Setting profile image from DB legacy path:", fullUrl);
-    setters.setProfileImage(fullUrl);
-  }
+  setters.setProfileImage(getCleanImageUrl(user.profileImage));
 };
 
 const validateFullName = (val: string): string | null => {
@@ -441,7 +435,17 @@ export default function EditProfileScreen() {
 
   const buildLocationLabel = async (coordinates: Coordinates) => {
     try {
-      const places = await Location.reverseGeocodeAsync(coordinates);
+      if (
+        coordinates.latitude === undefined ||
+        coordinates.longitude === undefined
+      ) {
+        return "Unknown location";
+      }
+
+      const places = await Location.reverseGeocodeAsync({
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+      });
       const place = places?.[0];
 
       if (place) {
@@ -462,7 +466,7 @@ export default function EditProfileScreen() {
       console.log("Edit profile reverse geocoding failed:", error);
     }
 
-    return `${coordinates.latitude.toFixed(6)}, ${coordinates.longitude.toFixed(6)}`;
+    return `${(coordinates.latitude ?? 0).toFixed(6)}, ${(coordinates.longitude ?? 0).toFixed(6)}`;
   };
 
   const openOrganizationMapPicker = async () => {
@@ -645,20 +649,26 @@ export default function EditProfileScreen() {
         if (location) formData.append("location", location.trim());
         if (contact) formData.append("contact", contact.trim());
         if (organizationCoordinates) {
-          formData.append("latitude", String(organizationCoordinates.latitude));
+          formData.append(
+            "latitude",
+            String(organizationCoordinates.latitude ?? 0),
+          );
           formData.append(
             "longitude",
-            String(organizationCoordinates.longitude),
+            String(organizationCoordinates.longitude ?? 0),
           );
-          formData.append("Latitude", String(organizationCoordinates.latitude));
+          formData.append(
+            "Latitude",
+            String(organizationCoordinates.latitude ?? 0),
+          );
           formData.append(
             "Longitude",
-            String(organizationCoordinates.longitude),
+            String(organizationCoordinates.longitude ?? 0),
           );
         }
       }
 
-      if (profileImage) {
+      if (profileImage && !/^https?:\/\//i.test(profileImage)) {
         const uriParts = profileImage.split(".");
         const fileType = uriParts[uriParts.length - 1];
 
@@ -974,8 +984,8 @@ export default function EditProfileScreen() {
               </TouchableOpacity>
               {organizationCoordinates && (
                 <Text style={styles.mapCoordinateText}>
-                  Lat {organizationCoordinates.latitude.toFixed(6)} | Lng{" "}
-                  {organizationCoordinates.longitude.toFixed(6)}
+                  Lat {(organizationCoordinates?.latitude ?? 0).toFixed(6)} |
+                  Lng {(organizationCoordinates?.longitude ?? 0).toFixed(6)}
                 </Text>
               )}
               {!!locationError && (

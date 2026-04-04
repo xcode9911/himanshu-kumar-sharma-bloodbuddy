@@ -16,6 +16,7 @@ import {
 import Navigation from "../../components/Navigation"
 import ProfileModal from "../../components/ProfileModal"
 import { API_BASE_URL, API_ENDPOINTS } from "../../config/api"
+import { getCleanImageUrl } from "../../utils/image"
 import { connectSocket, getSocket } from "../../config/socket"
 import { moderateScale, scale, verticalScale } from "../../utils/responsive"
 
@@ -277,7 +278,7 @@ export default function ChatScreen({ hideNavigation = false }: ChatScreenProps =
         >
           {item.profileImage ? (
              <Image 
-               source={{ uri: typeof item.profileImage === 'string' ? item.profileImage : `${API_BASE_URL}/${item.profileImage.path}` }}
+               source={{ uri: getCleanImageUrl(item.profileImage) || "" }}
                style={styles.avatarImage}
              />
           ) : (

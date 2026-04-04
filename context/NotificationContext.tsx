@@ -1,4 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
+import * as Notifications from "expo-notifications";
 import React, {
     createContext,
     useContext,
@@ -31,6 +33,7 @@ type InAppNotificationInput = {
   dedupeKey?: string;
   sourceEvent?: string;
   showAlert?: boolean;
+  urgent?: boolean;
 };
 
 interface NotificationContextType {
@@ -85,6 +88,18 @@ const FALLBACK_EVENT_META: Record<string, { title: string; type: string }> = {
 };
 
 const SOCKET_FALLBACK_EVENTS = Object.keys(FALLBACK_EVENT_META);
+const NOTIFICATION_PERMISSION_ASKED_KEY = "notificationPermissionAsked";
+const EXPO_PUSH_TOKEN_KEY = "expoPushToken";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 const toNotificationItem = (
   raw: any,
@@ -201,6 +216,137 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   };
 
+  const configureNotificationChannel = async () => {
+    if (Platform.OS !== "android") {
+      return;
+    }
+
+    try {
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "default",
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#D11B31",
+      });
+
+      await Notifications.setNotificationChannelAsync("emergency", {
+        name: "Emergency Alerts",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 400, 200, 600, 200, 600],
+        lightColor: "#D11B31",
+        lockscreenVisibility:
+          Notifications.AndroidNotificationVisibility.PUBLIC,
+      });
+    } catch (error) {
+      console.log("Failed to configure notification channel:", error);
+    }
+  };
+
+  const getProjectId = () => {
+    return (
+      Constants.expoConfig?.extra?.eas?.projectId ||
+      Constants.easConfig?.projectId
+    );
+  };
+
+  const registerExpoPushToken = async () => {
+    try {
+      const projectId = getProjectId();
+      const tokenResponse = projectId
+        ? await Notifications.getExpoPushTokenAsync({ projectId })
+        : await Notifications.getExpoPushTokenAsync();
+
+      if (tokenResponse?.data) {
+        await AsyncStorage.setItem(EXPO_PUSH_TOKEN_KEY, tokenResponse.data);
+      }
+    } catch (error) {
+      console.log("Failed to register Expo push token:", error);
+    }
+  };
+
+  const requestNotificationPermissionOnce = async () => {
+    if (Platform.OS === "web" || isDetoxTest()) {
+      return;
+    }
+
+    try {
+      const alreadyAsked = await AsyncStorage.getItem(
+        NOTIFICATION_PERMISSION_ASKED_KEY,
+      );
+      if (alreadyAsked === "true") {
+        return;
+      }
+
+      const current = await Notifications.getPermissionsAsync();
+      let finalStatus = current.status;
+
+      if (finalStatus !== "granted") {
+        const requested = await Notifications.requestPermissionsAsync();
+        finalStatus = requested.status;
+      }
+
+      await AsyncStorage.setItem(NOTIFICATION_PERMISSION_ASKED_KEY, "true");
+
+      if (finalStatus === "granted") {
+        await registerExpoPushToken();
+      }
+    } catch (error) {
+      console.log("Notification permission request failed:", error);
+    }
+  };
+
+  const syncPushTokenIfGranted = async () => {
+    if (Platform.OS === "web" || isDetoxTest()) {
+      return;
+    }
+
+    try {
+      const permissions = await Notifications.getPermissionsAsync();
+      if (permissions.status === "granted") {
+        await registerExpoPushToken();
+      }
+    } catch (error) {
+      console.log("Failed to sync push token:", error);
+    }
+  };
+
+  const presentNativeNotification = async (
+    title: string,
+    message: string,
+    data?: Record<string, any>,
+    options?: { urgent?: boolean },
+  ) => {
+    if (Platform.OS === "web" || isDetoxTest()) {
+      return;
+    }
+
+    try {
+      const permissions = await Notifications.getPermissionsAsync();
+      if (permissions.status !== "granted") {
+        return;
+      }
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body: message,
+          sound: "default",
+          data,
+          channelId: options?.urgent ? "emergency" : "default",
+          priority: options?.urgent
+            ? Notifications.AndroidNotificationPriority.MAX
+            : Notifications.AndroidNotificationPriority.HIGH,
+          interruptionLevel: options?.urgent
+            ? Notifications.IosInterruptionLevel.TIME_SENSITIVE
+            : Notifications.IosInterruptionLevel.ACTIVE,
+        },
+        trigger: null,
+      });
+    } catch (error) {
+      console.log("Failed to present local notification:", error);
+    }
+  };
+
   const fetchNotifications = async () => {
     try {
       const token = await AsyncStorage.getItem("authToken");
@@ -260,6 +406,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       upsertNotificationList(prev, localNotification),
     );
 
+    presentNativeNotification(
+      input.title,
+      input.message,
+      {
+        type: input.type,
+        relatedId: input.relatedId,
+        sourceEvent: input.sourceEvent,
+      },
+      {
+        urgent: input.urgent,
+      },
+    );
+
     if (input.showAlert && Platform.OS !== "web") {
       Alert.alert(input.title, input.message);
     }
@@ -279,11 +438,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
         upsertNotificationList(prev, normalized),
       );
 
-      if (Platform.OS !== "web") {
-        Alert.alert(normalized.Title, normalized.Message);
-      } else {
-        console.log("New Notification:", normalized.Title, normalized.Message);
-      }
+      presentNativeNotification(
+        normalized.Title,
+        normalized.Message,
+        {
+          type: normalized.Type,
+          relatedId: normalized.RelatedId,
+          notificationId: normalized.NotificationId,
+        },
+        {
+          urgent: normalized.Type === "emergency",
+        },
+      );
     };
 
     socket.off("newNotification");
@@ -304,6 +470,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
           sourceEvent: eventName,
           dedupeKey: `${eventName}:${payload?.requestId || payload?.RequestId || payload?.offerId || payload?.OfferId || "none"}`,
           showAlert: eventName === "newEmergencyRequest",
+          urgent: eventName === "newEmergencyRequest",
         });
 
         // Keep server state synced if backend also persists notifications.
@@ -323,14 +490,20 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   useEffect(() => {
-    fetchNotifications();
     let cleanup: undefined | (() => void);
 
-    if (!isDetoxTest()) {
-      setupSocket().then((unsubscribe) => {
-        cleanup = unsubscribe;
-      });
-    }
+    const bootstrap = async () => {
+      await configureNotificationChannel();
+      await requestNotificationPermissionOnce();
+      await syncPushTokenIfGranted();
+      await fetchNotifications();
+
+      if (!isDetoxTest()) {
+        cleanup = await setupSocket();
+      }
+    };
+
+    bootstrap();
 
     return () => {
       if (cleanup) {

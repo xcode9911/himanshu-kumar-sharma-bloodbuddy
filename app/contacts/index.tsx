@@ -16,7 +16,8 @@ import {
     View,
 } from "react-native";
 import Navigation from "../../components/Navigation";
-import { API_BASE_URL, API_ENDPOINTS } from "../../config/api";
+import { API_ENDPOINTS } from "../../config/api";
+import { getCleanImageUrl } from "../../utils/image";
 import { moderateScale, scale, verticalScale } from "../../utils/responsive";
 
 type UserType = "gainer" | "donor" | "organization";
@@ -223,10 +224,7 @@ export default function ContactsScreen({
           {item.profileImage ? (
             <Image
               source={{
-                uri:
-                  typeof item.profileImage === "string"
-                    ? item.profileImage
-                    : `${API_BASE_URL}/${item.profileImage.path.replace(/\\/g, "/")}`,
+                uri: getCleanImageUrl(item.profileImage) || "",
               }}
               style={{ width: "100%", height: "100%", resizeMode: "cover" }}
             />
@@ -343,9 +341,7 @@ export default function ContactsScreen({
                     <Image
                       source={{
                         uri:
-                          typeof selectedContact.profileImage === "string"
-                            ? selectedContact.profileImage
-                            : `${API_BASE_URL}/${selectedContact.profileImage.path.replace(/\\/g, "/")}`,
+                          getCleanImageUrl(selectedContact.profileImage) || "",
                       }}
                       style={{
                         width: "100%",

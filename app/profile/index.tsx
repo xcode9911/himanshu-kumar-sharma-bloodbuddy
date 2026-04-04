@@ -21,6 +21,7 @@ import Navigation from "../../components/Navigation";
 import { API_BASE_URL, API_ENDPOINTS } from "../../config/api";
 import { getUserFriendlyError } from "../../utils/errorMessages";
 import { moderateScale, scale, verticalScale } from "../../utils/responsive";
+import { getCleanImageUrl } from "../../utils/image";
 
 const { width } = Dimensions.get("window");
 
@@ -94,38 +95,61 @@ export default function ProfileScreen() {
       try {
         const payload: any = jwtDecode(token);
         const jwtUser = payload?.user || payload || {};
-        const role = (jwtUser.role || "").toString().toLowerCase();
-        const roleData = jwtUser[role] || {};
+        const userId = String(jwtUser.userId || jwtUser.id || jwtUser._id || "");
+        
+        // Fetch fresh profile from API to ensure we have the correct relative paths
+        // and latest organization details.
+        let freshUser = jwtUser;
+        try {
+          const response = await fetch(API_ENDPOINTS.GET_PROFILE(userId), {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            freshUser = data.user || freshUser;
+          }
+        } catch (apiError) {
+          console.log("Failed to fetch fresh profile, using token data:", apiError);
+        }
+
+        const role = (freshUser.role || "").toString().toLowerCase();
+        const roleData = freshUser[role] || {};
 
         const normalized: UserData = {
-          id: String(jwtUser.userId || jwtUser.id || jwtUser._id || ""),
-          fullName: jwtUser.fullName || jwtUser.name || "",
-          email: jwtUser.email || "",
+          id: userId,
+          fullName: freshUser.fullName || freshUser.FullName || freshUser.name || "",
+          email: freshUser.email || freshUser.Email || "",
           role: role,
-          phone: jwtUser.phone || jwtUser.phoneNumber || "",
-          bloodType: jwtUser.bloodType || roleData.bloodType,
-          location: jwtUser.location || roleData.location,
-          address: jwtUser.address || roleData.address,
+          phone: freshUser.phone || freshUser.Phone || freshUser.phoneNumber || "",
+          bloodType: freshUser.bloodType || roleData.bloodType || roleData.BloodType,
+          location: freshUser.location || roleData.location || roleData.Location,
+          address: freshUser.address || roleData.address || roleData.Address,
           organizationName:
-            jwtUser.organizationName || roleData.organizationName,
+            freshUser.organizationName || freshUser.OrganizationName || roleData.organizationName || roleData.OrganizationName,
           eligibilityStatus:
-            typeof jwtUser.eligibilityStatus === "boolean"
-              ? jwtUser.eligibilityStatus
+            typeof freshUser.eligibilityStatus === "boolean"
+              ? freshUser.eligibilityStatus
                 ? "eligible"
                 : "ineligible"
-              : jwtUser.eligibilityStatus || roleData.eligibilityStatus,
+              : freshUser.eligibilityStatus || roleData.eligibilityStatus || roleData.EligibilityStatus,
           lastDonationDate:
-            jwtUser.lastDonationDate || roleData.lastDonationDate,
-          profileImage:
-            jwtUser.ProfileImage ||
-            jwtUser.profileImage ||
-            roleData.ProfileImage,
+            freshUser.lastDonationDate || roleData.lastDonationDate || roleData.LastDonationDate,
+          profileImage: getCleanImageUrl(
+            freshUser.profileImage ||
+            freshUser.ProfileImage ||
+            roleData.profileImage ||
+            roleData.ProfileImage ||
+            freshUser.avatar
+          ),
         };
 
         if (role === "donor") {
           setIsAvailable(!!roleData.isAvailable);
         }
+        
         setUserData(normalized);
+        // Also update local cache
+        await AsyncStorage.setItem("userData", JSON.stringify(normalized));
       } catch (e) {
         // Fallback to cached data
         const userDataString = await AsyncStorage.getItem("userData");
@@ -312,14 +336,12 @@ export default function ProfileScreen() {
           >
             {userData.profileImage ? (
               <Image
-                source={{
-                  uri:
-                    typeof userData.profileImage === "string"
-                      ? userData.profileImage
-                      : `${API_BASE_URL}/${userData.profileImage.path}`,
-                }}
+                source={{ uri: userData.profileImage }}
                 style={styles.profileImage}
                 resizeMode="cover"
+                onError={(e) => {
+                  console.log("Profile Image Load Error:", e.nativeEvent.error, "URI:", userData.profileImage);
+                }}
               />
             ) : (
               <Image
