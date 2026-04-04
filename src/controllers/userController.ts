@@ -2,7 +2,7 @@ import axios from "axios";
 import bcrypt from "bcrypt";
 import type { Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import type { Prisma } from "../../generated/prisma/client.js";
+import type { Prisma } from "@prisma/client";
 import prisma from "../models/index.js";
 import {
     sendOTPEmail,
