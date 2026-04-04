@@ -4,7 +4,6 @@
     "outDir": "./dist",
     "module": "nodenext",
     "target": "esnext",
-    "types": [],
     "sourceMap": false,
     "declaration": false,
     "declarationMap": false,
