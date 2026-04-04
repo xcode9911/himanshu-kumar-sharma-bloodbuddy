@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import prisma from "../models/index.js";
 import { logInventoryChange } from "../utils/inventoryLogger.js";
+import { getFullImageUrl } from "../utils/imageUtils.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "bloodbuddysecret";
 
@@ -521,12 +522,7 @@ export const getAllOrganizations = async (req: Request, res: Response) => {
     });
 
     const formattedOrgs = organizations.map((org) => {
-      let profileImage = null;
-      if (org.user?.ProfileImage) {
-        profileImage = org.user.ProfileImage.startsWith("http")
-          ? org.user.ProfileImage
-          : `${process.env.API_URL || "http://192.168.1.65:8000"}/${org.user.ProfileImage}`;
-      }
+      const profileImage = getFullImageUrl(org.user?.ProfileImage);
 
       return {
         id: org.UserId,

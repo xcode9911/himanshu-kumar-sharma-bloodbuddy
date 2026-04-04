@@ -7,6 +7,7 @@ import { createNotification } from "./notificationController.js";
 
 import fs from "fs";
 import path from "path";
+import { getFullImageUrl } from "../utils/imageUtils.js";
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -104,14 +105,10 @@ const mapCampaign = (campaign: any) => {
     longitude: campaign.Longitude,
     startDate: campaign.StartDate,
     endDate: campaign.EndDate,
-    posterUrl: campaign.PosterUrl
-      ? `${process.env.API_URL || "http://192.168.1.65:8000"}/${campaign.PosterUrl}`
-      : null,
+    posterUrl: getFullImageUrl(campaign.PosterUrl),
     status: new Date() < new Date(campaign.EndDate) ? "active" : "ended",
     organizationName: campaign.organization?.OrganizationName,
-    organizationLogoUrl: campaign.organization?.user?.ProfileImage
-      ? `${process.env.API_URL || "http://192.168.1.65:8000"}/${campaign.organization.user.ProfileImage}`
-      : null,
+    organizationLogoUrl: getFullImageUrl(campaign.organization?.user?.ProfileImage),
     organizationPhone:
       campaign.organization?.Contact || campaign.organization?.user?.Phone,
     organizationEmail: campaign.organization?.user?.Email,
@@ -319,9 +316,7 @@ export const createCampaign = catchAsync(
         type: "campaign",
         message: `New Campaign: ${title} by ${organization.OrganizationName}`,
         campaignId: campaign.CampaignId,
-        posterUrl: campaign.PosterUrl
-          ? `${process.env.API_URL || "http://192.168.1.65:8000"}/${campaign.PosterUrl}`
-          : null,
+        posterUrl: getFullImageUrl(campaign.PosterUrl),
       });
     }
 

@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../models/index.js';
 import { buildUserPayload, generateToken } from './userController.js';
+import { getFullImageUrl } from '../utils/imageUtils.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'bloodbuddysecret';
 
@@ -160,11 +161,7 @@ export const getAllDonors = async (req: Request, res: Response) => {
     });
 
     const formattedDonors = donors.map(donor => {
-      let profileImage = donor.user?.ProfileImage 
-        ? donor.user.ProfileImage.startsWith("http")
-          ? donor.user.ProfileImage
-          : `${process.env.API_URL || "http://192.168.1.65:8000"}/${donor.user.ProfileImage}`
-        : null;
+      const profileImage = getFullImageUrl(donor.user?.ProfileImage);
 
       return {
         id: donor.UserId,

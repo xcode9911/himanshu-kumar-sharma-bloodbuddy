@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import prisma from '../models/index.js';
 import { createNotification } from './notificationController.js';
+import { getFullImageUrl } from '../utils/imageUtils.js';
 
 /**
  * Send a message and save to database
@@ -177,11 +178,7 @@ export const getChatPartners = async (req: Request, res: Response) => {
                 lastMessageTime: lastMsg?.Timestamp || null,
                 unreadCount: unread,
                 isOnline: isOnline,
-                profileImage: u.ProfileImage
-                  ? u.ProfileImage.startsWith("http")
-                    ? u.ProfileImage
-                    : `${process.env.API_URL || "http://192.168.1.65:8000"}/${u.ProfileImage}`
-                  : null
+                profileImage: getFullImageUrl(u.ProfileImage)
             };
         };
 

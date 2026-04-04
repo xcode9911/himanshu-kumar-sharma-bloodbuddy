@@ -8,6 +8,7 @@ import {
     sendOTPEmail,
     sendPasswordResetOTPEmail,
 } from "../utils/emailService.js";
+import { getFullImageUrl } from "../utils/imageUtils.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "bloodbuddysecret";
 const OTP_EXPIRY_MINUTES = 10;
@@ -136,11 +137,7 @@ export const buildUserPayload = (user: any) => {
     role: user.Role,
     phone: user.Phone,
     createdAt: user.CreatedAt,
-    profileImage: user.ProfileImage
-      ? user.ProfileImage.startsWith("http")
-        ? user.ProfileImage
-        : `${process.env.API_URL || "http://192.168.1.65:8000"}/${user.ProfileImage}`
-      : null,
+    profileImage: getFullImageUrl(user.ProfileImage),
   };
 
   if (user.Role === "donor" && user.donor) {
