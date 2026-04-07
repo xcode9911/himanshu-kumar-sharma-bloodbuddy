@@ -11,7 +11,8 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "The app needs access to your photos to let you upload posters for your blood donation campaigns."
+        "NSPhotoLibraryUsageDescription": "The app needs access to your photos to let you upload posters for your blood donation campaigns.",
+        "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.illusionhex5464.Bloodbuddy"
     },
@@ -21,12 +22,14 @@
         "foregroundImage": "./assets/images/logo.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBZKqjwJA14idtW-cHjpEePNmW0B_R6pIo"
+        }
+      },
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA"
       ],
@@ -57,6 +60,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "885424af-8717-4e05-bff9-cc8ebe098fc9"
+      }
+    },
+    "owner": "bloodbuddy"
   }
 }

@@ -50,7 +50,7 @@ export default function ConversationScreen() {
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [partnerProfileImage, setPartnerProfileImage] = useState<any>(null);
   const flatListRef = useRef<FlatList>(null);
-  const keyboardAvoidingBehavior = Platform.select({
+  const keyboardAvoidingBehavior = Platform.select<"height" | "padding" | "position" | undefined>({
     ios: "padding",
     android: "height",
     default: undefined,
