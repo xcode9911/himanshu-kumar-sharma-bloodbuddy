@@ -25,6 +25,7 @@ import Animated, {
     useSharedValue,
     withSpring,
 } from "react-native-reanimated";
+import LeafletMapView from "../../../components/LeafletMapView";
 import { API_ENDPOINTS } from "../../../config/api";
 import { getUserFriendlyError } from "../../../utils/errorMessages";
 import {
@@ -66,7 +67,6 @@ type Coordinates = {
 export default function RegisterScreen() {
   const expoMapsModule = loadExpoMapsModule();
   const AppleMapsView = expoMapsModule?.AppleMaps?.View;
-  const GoogleMapsView = expoMapsModule?.GoogleMaps?.View;
   const router = useRouter();
   const [selectedType, setSelectedType] = useState<UserType>("gainer");
   const [fullName, setFullName] = useState("");
@@ -500,7 +500,10 @@ export default function RegisterScreen() {
 
   const buildLocationLabel = async (coordinates: Coordinates) => {
     try {
-      if (coordinates.latitude === undefined || coordinates.longitude === undefined) {
+      if (
+        coordinates.latitude === undefined ||
+        coordinates.longitude === undefined
+      ) {
         return "Unknown location";
       }
 
@@ -979,8 +982,8 @@ export default function RegisterScreen() {
               </TouchableOpacity>
               {organizationCoordinates && (
                 <Text style={styles.mapCoordinateText}>
-                  Lat {(organizationCoordinates?.latitude ?? 0).toFixed(6)} | Lng{" "}
-                  {(organizationCoordinates?.longitude ?? 0).toFixed(6)}
+                  Lat {(organizationCoordinates?.latitude ?? 0).toFixed(6)} |
+                  Lng {(organizationCoordinates?.longitude ?? 0).toFixed(6)}
                 </Text>
               )}
               {locationTouched && !!locationError && (
@@ -1180,23 +1183,14 @@ export default function RegisterScreen() {
                       setLocationSearchError(null);
                     }}
                   />
-                ) : Platform.OS === "android" && GoogleMapsView ? (
-                  <GoogleMapsView
+                ) : Platform.OS === "android" ? (
+                  <LeafletMapView
                     ref={(ref) => {
                       mapPickerRef.current = ref;
                     }}
                     style={styles.mapPickerMap}
                     cameraPosition={{ coordinates: mapPickerCenter, zoom: 13 }}
                     markers={mapPickerGoogleMarkers}
-                    uiSettings={{
-                      compassEnabled: true,
-                      myLocationButtonEnabled: true,
-                      scaleBarEnabled: true,
-                      zoomControlsEnabled: false,
-                    }}
-                    properties={{
-                      isMyLocationEnabled: true,
-                    }}
                     onMapClick={(event) => {
                       setMapPickerCoordinates(event.coordinates);
                       setLocationSearchError(null);

@@ -371,10 +371,14 @@ export default function Home() {
         bookingResponse.ok &&
         bookingData.requests
       ) {
-        const pendingCount = bookingData.requests.filter(
-          (r: any) => r.Status === "Pending",
-        ).length;
-        setUnreadCount(pendingCount);
+        // Don't overwrite the notification unread count with pending booking count.
+        // These are two separate concerns:
+        // - unreadCount = real notifications from the server
+        // - pendingCount = bookings awaiting approval (shown elsewhere in UI)
+        // const pendingCount = bookingData.requests.filter(
+        //   (r: any) => r.Status === "Pending",
+        // ).length;
+        // setUnreadCount(pendingCount);
       }
     } catch (error) {
       console.log("Error fetching data:", error);

@@ -45,3 +45,15 @@ jest.mock("expo/src/winter/installGlobal", () => ({
 jest.mock("react-native-reanimated", () =>
   require("react-native-reanimated/mock"),
 );
+jest.mock("react-native-webview", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+
+  const MockWebView = React.forwardRef((_props: any, _ref: any) => {
+    return React.createElement(View, null);
+  });
+
+  return {
+    WebView: MockWebView,
+  };
+});

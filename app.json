@@ -10,6 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
+      "icon": "./assets/images/logo.png",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "The app needs access to your photos to let you upload posters for your blood donation campaigns.",
         "ITSAppUsesNonExemptEncryption": false
@@ -20,7 +21,8 @@
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/logo.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#ffffff",
+        "monochromeImage": "./assets/images/logo.png"
       },
       "config": {
         "googleMaps": {

@@ -205,8 +205,11 @@ const Navigation = ({
     const socket = getSocket();
     if (!socket) return;
 
+    // Note: Do NOT call socket.off() here - it wipes the notification context's listeners.
+    // The notification provider already listens to these events globally.
+    // This component just manages emergency-specific UI state.
+
     // Donor notifications
-    socket.off("newEmergencyRequest");
     if (role === "donor") {
       socket.on("newEmergencyRequest", (data: any) => {
         const normalized = normalizeEmergencyData(data);
@@ -218,7 +221,6 @@ const Navigation = ({
     }
 
     // Location updates
-    socket.off("locationUpdated");
     socket.on("locationUpdated", (data: any) => {
       const nextDonorLocation = normalizeLocationPoint(data?.donorLocation);
       const nextGainerLocation = normalizeLocationPoint(data?.gainerLocation);
@@ -229,7 +231,6 @@ const Navigation = ({
 
     // Gainer notifications
     if (role === "gainer") {
-      socket.off("emergencyAccepted");
       socket.on("emergencyAccepted", (data: any) => {
         const name = data.donorName || data.DonorName;
         const phone = data.donorPhone || data.DonorPhone;
@@ -252,7 +253,6 @@ const Navigation = ({
         startLocationTracking(data.requestId || data.RequestId, "gainer");
       });
 
-      socket.off("emergencyDonorCancelled");
       socket.on("emergencyDonorCancelled", (data: any) => {
         triggerEmergencyFeedback();
         Alert.alert(

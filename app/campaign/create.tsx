@@ -22,6 +22,7 @@ import BannerCreationModal from "../../components/BannerCreationModal";
 import CampaignCollaborateModal, {
     type CollaborateOrganization,
 } from "../../components/CampaignCollaborateModal";
+import LeafletMapView from "../../components/LeafletMapView";
 import { API_ENDPOINTS } from "../../config/api";
 import { getUserFriendlyError } from "../../utils/errorMessages";
 import {
@@ -74,7 +75,6 @@ export default function CreateCampaignScreen() {
   const params = useLocalSearchParams();
   const expoMapsModule = loadExpoMapsModule();
   const AppleMapsView = expoMapsModule?.AppleMaps?.View;
-  const GoogleMapsView = expoMapsModule?.GoogleMaps?.View;
   const isEditing = !!params.id;
   const [loading, setLoading] = useState(false);
 
@@ -1122,8 +1122,8 @@ export default function CreateCampaignScreen() {
                       setCampaignLocationSearchError(null);
                     }}
                   />
-                ) : Platform.OS === "android" && GoogleMapsView ? (
-                  <GoogleMapsView
+                ) : Platform.OS === "android" ? (
+                  <LeafletMapView
                     ref={(ref) => {
                       campaignMapRef.current = ref;
                     }}
@@ -1133,15 +1133,6 @@ export default function CreateCampaignScreen() {
                       zoom: 13,
                     }}
                     markers={campaignMapGoogleMarkers}
-                    uiSettings={{
-                      compassEnabled: true,
-                      myLocationButtonEnabled: true,
-                      scaleBarEnabled: true,
-                      zoomControlsEnabled: false,
-                    }}
-                    properties={{
-                      isMyLocationEnabled: true,
-                    }}
                     onMapClick={(event) => {
                       const next = toValidCoordinates(event.coordinates);
                       if (!next) return;

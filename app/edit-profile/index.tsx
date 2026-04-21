@@ -19,6 +19,7 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import LeafletMapView from "../../components/LeafletMapView";
 import { API_ENDPOINTS } from "../../config/api";
 import { getUserFriendlyError } from "../../utils/errorMessages";
 import {
@@ -196,7 +197,6 @@ const validateContact = (val: string): string | null => {
 export default function EditProfileScreen() {
   const expoMapsModule = loadExpoMapsModule();
   const AppleMapsView = expoMapsModule?.AppleMaps?.View;
-  const GoogleMapsView = expoMapsModule?.GoogleMaps?.View;
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -1213,23 +1213,14 @@ export default function EditProfileScreen() {
                     setLocationSearchError(null);
                   }}
                 />
-              ) : Platform.OS === "android" && GoogleMapsView ? (
-                <GoogleMapsView
+              ) : Platform.OS === "android" ? (
+                <LeafletMapView
                   ref={(ref) => {
                     mapPickerRef.current = ref;
                   }}
                   style={styles.mapPickerMap}
                   cameraPosition={{ coordinates: mapPickerCenter, zoom: 13 }}
                   markers={mapPickerGoogleMarkers}
-                  uiSettings={{
-                    compassEnabled: true,
-                    myLocationButtonEnabled: true,
-                    scaleBarEnabled: true,
-                    zoomControlsEnabled: false,
-                  }}
-                  properties={{
-                    isMyLocationEnabled: true,
-                  }}
                   onMapClick={(event) => {
                     setMapPickerCoordinates(event.coordinates);
                     setLocationSearchError(null);

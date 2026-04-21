@@ -16,6 +16,7 @@ import {
     type GoogleMapProps,
 } from "../utils/expoMapsRuntime";
 import { moderateScale, scale, verticalScale } from "../utils/responsive";
+import LeafletMapView from "./LeafletMapView";
 
 interface Location {
   lat: number;
@@ -55,7 +56,6 @@ export default function MapModal({
 }: MapModalProps) {
   const expoMapsModule = loadExpoMapsModule();
   const AppleMapsView = expoMapsModule?.AppleMaps?.View;
-  const GoogleMapsView = expoMapsModule?.GoogleMaps?.View;
 
   const donorValid = hasValidLocation(donorLocation);
   const gainerValid = hasValidLocation(gainerLocation);
@@ -243,9 +243,9 @@ export default function MapModal({
       );
     }
 
-    if (Platform.OS === "android" && GoogleMapsView) {
+    if (Platform.OS === "android") {
       return (
-        <GoogleMapsView
+        <LeafletMapView
           style={styles.mapView}
           cameraPosition={{
             coordinates: centerCoordinates,
@@ -253,15 +253,6 @@ export default function MapModal({
           }}
           markers={googleMarkers}
           polylines={googlePolylines}
-          uiSettings={{
-            compassEnabled: true,
-            myLocationButtonEnabled: true,
-            scaleBarEnabled: true,
-            zoomControlsEnabled: false,
-          }}
-          properties={{
-            isMyLocationEnabled: true,
-          }}
         />
       );
     }

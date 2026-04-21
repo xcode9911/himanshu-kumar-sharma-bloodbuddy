@@ -1,4 +1,5 @@
 import type { AppleMaps, GoogleMaps } from "expo-maps";
+import { Platform } from "react-native";
 
 export type AppleMapMarker = AppleMaps.Marker;
 export type GoogleMapMarker = GoogleMaps.Marker;
@@ -52,6 +53,11 @@ const hasNativeExpoMaps = (): boolean => {
 
 export const loadExpoMapsModule = (): ExpoMapsModule | null => {
   if (cachedModule !== undefined) {
+    return cachedModule;
+  }
+
+  if (Platform.OS === "android") {
+    cachedModule = null;
     return cachedModule;
   }
 

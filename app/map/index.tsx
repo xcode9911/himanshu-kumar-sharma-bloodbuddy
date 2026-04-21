@@ -17,6 +17,7 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import LeafletMapView from "../../components/LeafletMapView";
 import { API_ENDPOINTS } from "../../config/api";
 import {
     loadExpoMapsModule,
@@ -87,7 +88,6 @@ export default function MapScreen(_props: MapScreenProps = {}) {
   const params = useLocalSearchParams();
   const expoMapsModule = loadExpoMapsModule();
   const AppleMapsView = expoMapsModule?.AppleMaps?.View;
-  const GoogleMapsView = expoMapsModule?.GoogleMaps?.View;
   const insets = useSafeAreaInsets();
   const [bloodBanks, setBloodBanks] = useState<BloodBank[]>([]);
   const [loading, setLoading] = useState(true);
@@ -710,10 +710,10 @@ export default function MapScreen(_props: MapScreenProps = {}) {
 
       return annotation;
     });
-  }, [displayBanks, organizationMarkerIcon, selectedBank?.id]);
+  }, [displayBanks, organizationMarkerIcon, selectedBank?.id, userLocation]);
 
   const googleMarkers: GoogleMapMarker[] = useMemo(() => {
-    return displayBanks.map((bank) => {
+    const markers = displayBanks.map((bank) => {
       const isCampaign = bank.id === CAMPAIGN_DESTINATION_ID;
 
       const marker: any = {
@@ -735,6 +735,18 @@ export default function MapScreen(_props: MapScreenProps = {}) {
 
       return marker;
     });
+
+    if (userLocation) {
+      markers.unshift({
+        id: "current-location",
+        title: "Your Location",
+        coordinates: userLocation,
+        color: "#2563EB",
+        zIndex: 3,
+      } as any);
+    }
+
+    return markers;
   }, [displayBanks, organizationMarkerIcon, selectedBank?.id]);
 
   const handleMapMarkerClick = (markerId?: string) => {
@@ -878,9 +890,9 @@ export default function MapScreen(_props: MapScreenProps = {}) {
       );
     }
 
-    if (Platform.OS === "android" && GoogleMapsView) {
+    if (Platform.OS === "android") {
       return (
-        <GoogleMapsView
+        <LeafletMapView
           ref={(ref) => {
             mapRef.current = ref;
           }}
@@ -888,15 +900,6 @@ export default function MapScreen(_props: MapScreenProps = {}) {
           cameraPosition={{ coordinates: initialCoordinates, zoom: 12 }}
           markers={googleMarkers}
           polylines={googleRoutePolylines}
-          uiSettings={{
-            compassEnabled: true,
-            myLocationButtonEnabled: true,
-            scaleBarEnabled: true,
-            zoomControlsEnabled: false,
-          }}
-          properties={{
-            isMyLocationEnabled: true,
-          }}
           onMarkerClick={(event) => handleMapMarkerClick(event.id)}
           onMapClick={() => {
             setSelectedBank(null);
