@@ -99,6 +99,8 @@ model Campaign {
   Title          String
   Description    String?
   Location       String
+  TargetAttendees Int?
+  TargetUnits     Int?
   Latitude       Float?
   Longitude      Float?
   StartDate      DateTime

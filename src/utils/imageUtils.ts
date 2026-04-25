@@ -19,9 +19,12 @@ export const getFullImageUrl = (path: string | null | undefined): string | null 
     normalizedPath = normalizedPath.substring(1);
   }
   
-  // Use API_URL from env or fallback to a sensible default.
-  // Note: Render will have API_URL set by the user once they follow instructions.
-  const baseUrl = process.env.API_URL || "http://192.168.1.65:8000";
+  // Use API_URL from env.
+  // If not provided, return the normalized relative path for the frontend to handle.
+  const baseUrl = process.env.API_URL;
+  if (!baseUrl) {
+    return normalizedPath;
+  }
   
   // Ensure base URL doesn't end with a slash to avoid double slashes
   const trimmedBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;

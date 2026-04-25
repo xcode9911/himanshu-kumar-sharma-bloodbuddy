@@ -11,16 +11,19 @@ import { getFullImageUrl } from "../utils/imageUtils.js";
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = 'uploads/campaigns';
+    const uploadDir = "uploads/campaigns";
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(
+      null,
+      file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname),
+    );
+  },
 });
 
 export const upload = multer({
@@ -29,12 +32,14 @@ export const upload = multer({
   fileFilter: (req, file, cb) => {
     const filetypes = /jpeg|jpg|png|webp/;
     const mimetype = filetypes.test(file.mimetype);
-    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+    const extname = filetypes.test(
+      path.extname(file.originalname).toLowerCase(),
+    );
     if (mimetype && extname) {
       return cb(null, true);
     }
-    cb(new Error('Only images (jpeg, jpg, png, webp) are allowed'));
-  }
+    cb(new Error("Only images (jpeg, jpg, png, webp) are allowed"));
+  },
 });
 
 const parseOrganizationIds = (raw: unknown): number[] => {
@@ -77,6 +82,22 @@ const parseOrganizationIds = (raw: unknown): number[] => {
   return [];
 };
 
+const parsePositiveInteger = (raw: unknown): number | null => {
+  if (raw === undefined || raw === null || raw === "") {
+    return null;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
+};
+
+const hasProvidedValue = (raw: unknown): boolean =>
+  !(raw === undefined || raw === null || raw === "");
+
 const getOrganizationByUserId = async (userId: string) => {
   return prisma.organization.findFirst({
     where: { UserId: userId },
@@ -101,6 +122,8 @@ const mapCampaign = (campaign: any) => {
     title: campaign.Title,
     description: campaign.Description,
     location: campaign.Location,
+    targetAttendees: campaign.TargetAttendees,
+    targetUnits: campaign.TargetUnits,
     latitude: campaign.Latitude,
     longitude: campaign.Longitude,
     startDate: campaign.StartDate,
@@ -108,7 +131,9 @@ const mapCampaign = (campaign: any) => {
     posterUrl: getFullImageUrl(campaign.PosterUrl),
     status: new Date() < new Date(campaign.EndDate) ? "active" : "ended",
     organizationName: campaign.organization?.OrganizationName,
-    organizationLogoUrl: getFullImageUrl(campaign.organization?.user?.ProfileImage),
+    organizationLogoUrl: getFullImageUrl(
+      campaign.organization?.user?.ProfileImage,
+    ),
     organizationPhone:
       campaign.organization?.Contact || campaign.organization?.user?.Phone,
     organizationEmail: campaign.organization?.user?.Email,
@@ -227,6 +252,8 @@ export const createCampaign = catchAsync(
       title,
       description,
       location,
+      targetAttendees,
+      targetUnits,
       latitude,
       longitude,
       startDate,
@@ -255,11 +282,32 @@ export const createCampaign = catchAsync(
     }
 
     const posterFile = req.file;
+    const normalizedTargetAttendees = parsePositiveInteger(targetAttendees);
+    const normalizedTargetUnits = parsePositiveInteger(targetUnits);
+
+    if (
+      hasProvidedValue(targetAttendees) &&
+      normalizedTargetAttendees === null
+    ) {
+      res.status(400).json({
+        message: "targetAttendees must be a positive whole number",
+      });
+      return;
+    }
+
+    if (hasProvidedValue(targetUnits) && normalizedTargetUnits === null) {
+      res.status(400).json({
+        message: "targetUnits must be a positive whole number",
+      });
+      return;
+    }
 
     const campaignData: any = {
       Title: title,
       Description: description,
       Location: location,
+      TargetAttendees: normalizedTargetAttendees,
+      TargetUnits: normalizedTargetUnits,
       Latitude: latitude ? parseFloat(latitude) : null,
       Longitude: longitude ? parseFloat(longitude) : null,
       StartDate: new Date(startDate),
@@ -430,6 +478,8 @@ export const updateCampaign = catchAsync(
       title,
       description,
       location,
+      targetAttendees,
+      targetUnits,
       latitude,
       longitude,
       startDate,
@@ -481,6 +531,32 @@ export const updateCampaign = catchAsync(
     }
 
     const posterFile = req.file;
+    const hasTargetAttendeesPayload = typeof targetAttendees !== "undefined";
+    const hasTargetUnitsPayload = typeof targetUnits !== "undefined";
+    const normalizedTargetAttendees = parsePositiveInteger(targetAttendees);
+    const normalizedTargetUnits = parsePositiveInteger(targetUnits);
+
+    if (
+      hasTargetAttendeesPayload &&
+      hasProvidedValue(targetAttendees) &&
+      normalizedTargetAttendees === null
+    ) {
+      res.status(400).json({
+        message: "targetAttendees must be a positive whole number",
+      });
+      return;
+    }
+
+    if (
+      hasTargetUnitsPayload &&
+      hasProvidedValue(targetUnits) &&
+      normalizedTargetUnits === null
+    ) {
+      res.status(400).json({
+        message: "targetUnits must be a positive whole number",
+      });
+      return;
+    }
     const updateData: any = {
       Title: title,
       Description: description,
@@ -493,6 +569,14 @@ export const updateCampaign = catchAsync(
 
     if (updateData.Latitude === undefined) delete updateData.Latitude;
     if (updateData.Longitude === undefined) delete updateData.Longitude;
+
+    if (hasTargetAttendeesPayload) {
+      updateData.TargetAttendees = normalizedTargetAttendees;
+    }
+
+    if (hasTargetUnitsPayload) {
+      updateData.TargetUnits = normalizedTargetUnits;
+    }
 
     if (posterFile) {
       updateData.PosterUrl = posterFile.path.replace(/\\/g, "/");
@@ -990,10 +1074,26 @@ export const getCampaignReport = catchAsync(
           campaign.organization.Contact || campaign.organization.user.Phone,
         organizationEmail: campaign.organization.user.Email,
         collaborationNote: campaign.CollaborationNote,
+        targetAttendees: campaign.TargetAttendees,
+        targetUnits: campaign.TargetUnits,
         collaborationPartners,
         attendees,
         totalAttendees: attendees.length,
         totalUnits,
+        attendeesGoalHitPercent:
+          campaign.TargetAttendees && campaign.TargetAttendees > 0
+            ? Math.min(
+                100,
+                Math.round((attendees.length / campaign.TargetAttendees) * 100),
+              )
+            : null,
+        unitsGoalHitPercent:
+          campaign.TargetUnits && campaign.TargetUnits > 0
+            ? Math.min(
+                100,
+                Math.round((totalUnits / campaign.TargetUnits) * 100),
+              )
+            : null,
         generatedAt: new Date().toISOString(),
       },
     });
