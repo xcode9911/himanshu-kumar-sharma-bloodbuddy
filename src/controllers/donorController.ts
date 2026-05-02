@@ -6,6 +6,51 @@ import { getFullImageUrl } from '../utils/imageUtils.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'bloodbuddysecret';
 
+const VALID_BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const;
+type BloodType = typeof VALID_BLOOD_TYPES[number];
+
+// Maps each blood type to the set of blood types it can donate TO (recipient types).
+const COMPATIBILITY_MAP: Record<BloodType, BloodType[]> = {
+  'O-':  ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
+  'O+':  ['A+', 'B+', 'AB+', 'O+'],
+  'A-':  ['A+', 'A-', 'AB+', 'AB-'],
+  'A+':  ['A+', 'AB+'],
+  'B-':  ['B+', 'B-', 'AB+', 'AB-'],
+  'B+':  ['B+', 'AB+'],
+  'AB-': ['AB+', 'AB-'],
+  'AB+': ['AB+'],
+};
+
+/**
+ * Returns the list of blood types that can donate to the given recipient blood type.
+ */
+function getCompatibleDonorBloodTypes(recipientBloodType: BloodType): BloodType[] {
+  return (Object.entries(COMPATIBILITY_MAP) as [BloodType, BloodType[]][])
+    .filter(([, canDonateTo]) => canDonateTo.includes(recipientBloodType))
+    .map(([donorType]) => donorType);
+}
+
+/**
+ * Normalises a blood type string from user input to the canonical form (e.g. "A POSITIVE" → "A+").
+ */
+function normaliseBloodType(raw: string): string {
+  return raw
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .replace(/\bPOSITIVE\b/g, '+')
+    .replace(/\bNEGATIVE\b/g, '-')
+    .replace(/\s/g, ''); // remove any remaining spaces (e.g. "A +" → "A+")
+}
+
+/**
+ * Builds a Prisma `where` clause fragment for an optional case-insensitive location substring filter.
+ */
+function buildLocationFilter(location: string | undefined): object | undefined {
+  if (!location) return undefined;
+  return { contains: location.trim(), mode: 'insensitive' };
+}
+
 // Extract userId from bearer token; surface missing/invalid states for proper HTTP errors.
 const getUserIdFromAuthHeader = (req: Request): { userId: string | null; error?: 'missing' | 'invalid' } => {
   const authHeader = req.headers.authorization;
@@ -145,9 +190,48 @@ export const setDonorAvailability = async (req: Request, res: Response) => {
 };
 
 // Get all donors (for Gainers to browse)
+const formatDonor = (donor: any) => ({
+  id: donor.UserId,
+  donorId: donor.DonorId,
+  name: donor.user.FullName,
+  email: donor.user.Email,
+  phone: donor.user.Phone,
+  profileImage: getFullImageUrl(donor.user?.ProfileImage),
+  bloodType: donor.BloodType,
+  location: donor.Location,
+  lastDonationDate: donor.LastDonationDate,
+  eligibilityStatus: donor.EligibilityStatus,
+  isAvailable: donor.IsAvailable,
+  role: 'Donor',
+});
+
 export const getAllDonors = async (req: Request, res: Response) => {
   try {
+    const { bloodType, location, availableOnly } = req.query;
+
+    // Build dynamic where clause based on query params
+    const where: any = {};
+
+    if (bloodType) {
+      const bt = normaliseBloodType(String(bloodType));
+      if (!VALID_BLOOD_TYPES.includes(bt as BloodType)) {
+        return res.status(400).json({
+          message: `Invalid blood type. Must be one of: ${VALID_BLOOD_TYPES.join(', ')}`
+        });
+      }
+      where.BloodType = bt;
+    }
+
+    if (location) {
+      where.Location = buildLocationFilter(String(location));
+    }
+
+    if (availableOnly === 'true') {
+      where.IsAvailable = true;
+    }
+
     const donors = await prisma.donor.findMany({
+      where,
       include: {
         user: {
           select: {
@@ -160,32 +244,73 @@ export const getAllDonors = async (req: Request, res: Response) => {
       }
     });
 
-    const formattedDonors = donors.map(donor => {
-      const profileImage = getFullImageUrl(donor.user?.ProfileImage);
-
-      return {
-        id: donor.UserId,
-        donorId: donor.DonorId,
-        name: donor.user.FullName,
-        email: donor.user.Email,
-        phone: donor.user.Phone,
-        profileImage: profileImage,
-        bloodType: donor.BloodType,
-        location: donor.Location,
-        lastDonationDate: donor.LastDonationDate,
-        eligibilityStatus: donor.EligibilityStatus,
-        isAvailable: donor.IsAvailable,
-        role: 'Donor'
-      };
-    });
-
     return res.status(200).json({
       message: 'Donors retrieved successfully',
-      donors: formattedDonors
+      count: donors.length,
+      donors: donors.map(formatDonor),
     });
   } catch (error: any) {
     console.error('Error fetching donors:', error);
     return res.status(500).json({ message: 'Error fetching donors', error: error.message });
+  }
+};
+
+/**
+ * GET /api/donors/compatible/:bloodType
+ *
+ * Returns all donors whose blood type is compatible with (i.e. can donate to)
+ * the specified recipient blood type. Supports ?availableOnly=true and ?location=
+ * query parameters for further filtering.
+ */
+export const getCompatibleDonors = async (req: Request, res: Response) => {
+  try {
+    const { bloodType } = req.params;
+    const { location, availableOnly } = req.query;
+
+    const normalised = normaliseBloodType(String(bloodType ?? ''));
+
+    if (!VALID_BLOOD_TYPES.includes(normalised as BloodType)) {
+      return res.status(400).json({
+        message: `Invalid blood type. Must be one of: ${VALID_BLOOD_TYPES.join(', ')}`
+      });
+    }
+
+    const compatibleTypes = getCompatibleDonorBloodTypes(normalised as BloodType);
+
+    const where: any = { BloodType: { in: compatibleTypes } };
+
+    if (location) {
+      where.Location = buildLocationFilter(String(location));
+    }
+
+    if (availableOnly === 'true') {
+      where.IsAvailable = true;
+    }
+
+    const donors = await prisma.donor.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            FullName: true,
+            Email: true,
+            Phone: true,
+            ProfileImage: true,
+          }
+        }
+      }
+    });
+
+    return res.status(200).json({
+      message: `Donors compatible with blood type ${normalised} retrieved successfully`,
+      recipientBloodType: normalised,
+      compatibleDonorBloodTypes: compatibleTypes,
+      count: donors.length,
+      donors: donors.map(formatDonor),
+    });
+  } catch (error: any) {
+    console.error('Error fetching compatible donors:', error);
+    return res.status(500).json({ message: 'Error fetching compatible donors', error: error.message });
   }
 };
 
