@@ -1,55 +1,109 @@
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
-if (!SMTP_USER || !SMTP_PASS) {
-  console.warn('SMTP credentials not configured. Email sending will fail.');
+// Initialize Nodemailer transporter
+let nodemailerTransporter: nodemailer.Transporter | null = null;
+if (SMTP_USER && SMTP_PASS) {
+  nodemailerTransporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS,
+    },
+  });
+  console.log('✓ Nodemailer (Gmail) initialized as primary email service');
+} else {
+  console.warn('⚠ SMTP credentials not configured. Resend will be used as primary.');
 }
 
-// Create transporter
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: SMTP_USER,
-    pass: SMTP_PASS,
-  },
-});
+// Initialize Resend
+let resendClient: Resend | null = null;
+if (RESEND_API_KEY) {
+  resendClient = new Resend(RESEND_API_KEY);
+  console.log('✓ Resend initialized as fallback email service');
+} else {
+  console.warn('⚠ RESEND_API_KEY not configured. Fallback service unavailable.');
+}
+
+// Email sending utility with fallback logic
+const sendEmailWithFallback = async (
+  to: string,
+  subject: string,
+  html: string,
+  from: string = SMTP_USER || 'noreply@bloodbuddy.com'
+): Promise<void> => {
+  let lastError: Error | null = null;
+
+  // Try Nodemailer first (primary)
+  if (nodemailerTransporter) {
+    try {
+      console.log(`[Primary] Attempting to send email via Nodemailer to ${to}`);
+      await nodemailerTransporter.sendMail({
+        from,
+        to,
+        subject,
+        html,
+      });
+      console.log(`✓ [Nodemailer] Email sent successfully to ${to}`);
+      return;
+    } catch (error) {
+      lastError = error as Error;
+      console.error(`✗ [Nodemailer] Failed to send email: ${lastError.message}`);
+    }
+  }
+
+  // Fallback to Resend
+  if (resendClient) {
+    try {
+      console.log(`[Fallback] Attempting to send email via Resend to ${to}`);
+      await resendClient.emails.send({
+        from: 'BloodBuddy <onboarding@resend.dev>',
+        to,
+        subject,
+        html,
+      });
+      console.log(`✓ [Resend] Email sent successfully to ${to}`);
+      return;
+    } catch (error) {
+      lastError = error as Error;
+      console.error(`✗ [Resend] Failed to send email: ${lastError.message}`);
+    }
+  }
+
+  // Both services failed
+  throw new Error(
+    `Failed to send email to ${to} via both Nodemailer and Resend. Last error: ${lastError?.message || 'Unknown error'}`
+  );
+};
 
 // Send OTP email
 export const sendOTPEmail = async (email: string, otpCode: string, fullName: string): Promise<void> => {
-  if (!SMTP_USER || !SMTP_PASS) {
-    throw new Error('SMTP credentials not configured');
-  }
-
-  const mailOptions = {
-    from: SMTP_USER,
-    to: email,
-    subject: 'BloodBuddy - Email Verification OTP',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #d32f2f;">BloodBuddy Email Verification</h2>
-        <p>Hello ${fullName},</p>
-        <p>Thank you for registering with BloodBuddy. Please use the following OTP to verify your email address:</p>
-        <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
-          <h1 style="color: #d32f2f; margin: 0; font-size: 32px; letter-spacing: 5px;">${otpCode}</h1>
-        </div>
-        <p>This OTP will expire in 10 minutes.</p>
-        <p>If you did not request this verification, please ignore this email.</p>
-        <p style="margin-top: 30px; color: #666; font-size: 12px;">
-          Best regards,<br>
-          The BloodBuddy Team
-        </p>
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #d32f2f;">BloodBuddy Email Verification</h2>
+      <p>Hello ${fullName},</p>
+      <p>Thank you for registering with BloodBuddy. Please use the following OTP to verify your email address:</p>
+      <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
+        <h1 style="color: #d32f2f; margin: 0; font-size: 32px; letter-spacing: 5px;">${otpCode}</h1>
       </div>
-    `,
-  };
+      <p>This OTP will expire in 10 minutes.</p>
+      <p>If you did not request this verification, please ignore this email.</p>
+      <p style="margin-top: 30px; color: #666; font-size: 12px;">
+        Best regards,<br>
+        The BloodBuddy Team
+      </p>
+    </div>
+  `;
 
   try {
-    await transporter.sendMail(mailOptions);
-    console.log(`OTP email sent successfully to ${email}`);
+    await sendEmailWithFallback(email, 'BloodBuddy - Email Verification OTP', html);
   } catch (error) {
     console.error('Error sending OTP email:', error);
-    throw new Error('Failed to send OTP email');
+    throw new Error('Failed to send OTP email via both Nodemailer and Resend');
   }
 };
 
@@ -59,38 +113,28 @@ export const sendPasswordResetOTPEmail = async (
   otpCode: string,
   fullName: string
 ): Promise<void> => {
-  if (!SMTP_USER || !SMTP_PASS) {
-    throw new Error('SMTP credentials not configured');
-  }
-
-  const mailOptions = {
-    from: SMTP_USER,
-    to: email,
-    subject: 'BloodBuddy - Password Reset OTP',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #d32f2f;">BloodBuddy Password Reset</h2>
-        <p>Hello ${fullName},</p>
-        <p>We received a request to reset your password. Use the OTP below to proceed:</p>
-        <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
-          <h1 style="color: #d32f2f; margin: 0; font-size: 32px; letter-spacing: 5px;">${otpCode}</h1>
-        </div>
-        <p>This OTP will expire in 10 minutes.</p>
-        <p>If you did not request a password reset, you can safely ignore this email.</p>
-        <p style="margin-top: 30px; color: #666; font-size: 12px;">
-          Best regards,<br>
-          The BloodBuddy Team
-        </p>
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #d32f2f;">BloodBuddy Password Reset</h2>
+      <p>Hello ${fullName},</p>
+      <p>We received a request to reset your password. Use the OTP below to proceed:</p>
+      <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
+        <h1 style="color: #d32f2f; margin: 0; font-size: 32px; letter-spacing: 5px;">${otpCode}</h1>
       </div>
-    `,
-  };
+      <p>This OTP will expire in 10 minutes.</p>
+      <p>If you did not request a password reset, you can safely ignore this email.</p>
+      <p style="margin-top: 30px; color: #666; font-size: 12px;">
+        Best regards,<br>
+        The BloodBuddy Team
+      </p>
+    </div>
+  `;
 
   try {
-    await transporter.sendMail(mailOptions);
-    console.log(`Password reset OTP sent successfully to ${email}`);
+    await sendEmailWithFallback(email, 'BloodBuddy - Password Reset OTP', html);
   } catch (error) {
     console.error('Error sending password reset OTP email:', error);
-    throw new Error('Failed to send password reset OTP email');
+    throw new Error('Failed to send password reset OTP email via both Nodemailer and Resend');
   }
 };
 

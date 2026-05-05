@@ -1,4 +1,4 @@
 -- AlterTable
 ALTER TABLE "Campaign"
-ADD COLUMN "TargetAttendees" INTEGER,
-ADD COLUMN "TargetUnits" INTEGER;
+ADD COLUMN IF NOT EXISTS "TargetAttendees" INTEGER,
+ADD COLUMN IF NOT EXISTS "TargetUnits" INTEGER;
