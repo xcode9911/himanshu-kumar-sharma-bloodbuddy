@@ -61,7 +61,7 @@ const sendEmailWithFallback = async (
     try {
       console.log(`[Fallback] Attempting to send email via Resend to ${to}`);
       await resendClient.emails.send({
-        from: 'BloodBuddy <onboarding@resend.dev>',
+        from: SMTP_USER || 'noreply@bloodbuddy.com',
         to,
         subject,
         html,
