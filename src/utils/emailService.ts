@@ -19,7 +19,7 @@ if (SMTP_USER && SMTP_PASS) {
   });
   console.log('✓ Nodemailer (Gmail) initialized as primary email service');
 } else {
-  console.warn('⚠ SMTP credentials not configured. Resend will be used as primary.');
+  console.warn('⚠ SMTP credentials not configured. No primary SMTP configured; will attempt Brevo if available.');
 }
 
 // Initialize Brevo SMTP transporter (fallback for Nodemailer failures)
@@ -130,7 +130,7 @@ export const sendOTPEmail = async (email: string, otpCode: string, fullName: str
     await sendEmailWithFallback(email, 'BloodBuddy - Email Verification OTP', html);
   } catch (error) {
     console.error('Error sending OTP email:', error);
-    throw new Error('Failed to send OTP email via both Nodemailer and Resend');
+    throw new Error('Failed to send OTP email via Nodemailer and Brevo SMTP');
   }
 };
 
@@ -161,7 +161,7 @@ export const sendPasswordResetOTPEmail = async (
     await sendEmailWithFallback(email, 'BloodBuddy - Password Reset OTP', html);
   } catch (error) {
     console.error('Error sending password reset OTP email:', error);
-    throw new Error('Failed to send password reset OTP email via both Nodemailer and Resend');
+    throw new Error('Failed to send password reset OTP email via Nodemailer and Brevo SMTP');
   }
 };
 
