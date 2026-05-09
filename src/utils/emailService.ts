@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import axios from 'axios';
 
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
@@ -6,6 +7,7 @@ const BREVO_SMTP_HOST = process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com';
 const BREVO_SMTP_PORT = Number(process.env.BREVO_SMTP_PORT || 587);
 const BREVO_SMTP_USER = process.env.BREVO_SMTP_USER;
 const BREVO_SMTP_PASS = process.env.BREVO_SMTP_PASS;
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
 
 // Initialize Nodemailer transporter
 let nodemailerTransporter: nodemailer.Transporter | null = null;
@@ -46,6 +48,37 @@ if (BREVO_SMTP_USER && BREVO_SMTP_PASS) {
 } else {
   console.warn('⚠ Brevo SMTP credentials not configured. Will skip Brevo fallback.');
 }
+
+// Helper: send via Brevo Transactional HTTP API (fallback when SMTP and Nodemailer fail)
+const sendViaBrevoApi = async (to: string, subject: string, html: string, from: string) => {
+  if (!BREVO_API_KEY) {
+    throw new Error('Brevo API key not configured');
+  }
+
+  const payload = {
+    sender: {
+      email: from || (BREVO_SMTP_USER || 'noreply@bloodbuddy.com'),
+      name: 'BloodBuddy',
+    },
+    to: [
+      {
+        email: to,
+      },
+    ],
+    subject,
+    htmlContent: html,
+  } as any;
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'api-key': BREVO_API_KEY,
+  } as any;
+
+  const url = 'https://api.brevo.com/v3/smtp/email';
+
+  const resp = await axios.post(url, payload, { headers, timeout: 15000 });
+  return resp.data;
+};
 
 // Initialize Resend
 // Resend has been removed — using Nodemailer primary and Brevo SMTP fallback only.
@@ -92,6 +125,19 @@ const sendEmailWithFallback = async (
     } catch (error) {
       lastError = error as Error;
       console.error(`✗ [Brevo SMTP] Failed to send email: ${lastError.message}`);
+    }
+  }
+
+  // Try Brevo Transactional HTTP API as a last-resort fallback
+  if (BREVO_API_KEY) {
+    try {
+      console.log(`[Tertiary] Attempting to send email via Brevo HTTP API to ${to}`);
+      await sendViaBrevoApi(to, subject, html, from);
+      console.log(`✓ [Brevo API] Email sent successfully to ${to}`);
+      return;
+    } catch (error) {
+      lastError = error as Error;
+      console.error(`✗ [Brevo API] Failed to send email: ${lastError.message}`);
     }
   }
 
