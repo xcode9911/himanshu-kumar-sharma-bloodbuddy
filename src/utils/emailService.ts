@@ -154,14 +154,15 @@ const sendEmailWithFallback = async (
   // Both Nodemailer and Brevo failed
   // Provide actionable hint for common Brevo error (unauthorized IP)
   const msg = lastError?.message || 'Unknown error';
-  if (/status 401|Unauthorized|invalid api key|api key/i.test(msg)) {
-    throw new Error(
-      `Failed to send email: ${msg}. Brevo rejected the API key or the key is not valid for transactional email. Check that BREVO_API_KEY is the transactional API key from the same Brevo account, not an SMTP password, and that the key is enabled.`,
-    );
-  }
-  if (/Unauthorized IP|525 5\.7\.1|Unauthorized/.test(msg)) {
+  if (/unrecognised IP address|Unauthorized IP|525 5\.7\.1|unauthorized/i.test(msg)) {
     throw new Error(
       `Failed to send email: ${msg}. This often means Brevo SMTP rejected your server IP. Add your server's outbound IP to your Brevo (Sendinblue) SMTP relay allowed IPs, or use Brevo Transactional API / API key instead.`
+    );
+  }
+
+  if (/status 401|invalid api key|api key/i.test(msg)) {
+    throw new Error(
+      `Failed to send email: ${msg}. Brevo rejected the API key or the key is not valid for transactional email. Check that BREVO_API_KEY is the transactional API key from the same Brevo account, not an SMTP password, and that the key is enabled.`,
     );
   }
 
