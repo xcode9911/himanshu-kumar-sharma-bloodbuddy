@@ -741,8 +741,13 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
     try {
       await sendPasswordResetOTPEmail(user.Email, otpCode, user.FullName);
     } catch (emailError: any) {
-      console.error("Error sending password reset OTP email:", emailError);
-      // Avoid leaking details, still return generic success
+      console.error(
+        "Error sending password reset OTP email:",
+        emailError?.message || emailError,
+      );
+      return res.status(500).json({
+        message: "Failed to send password reset OTP email. Please try again.",
+      });
     }
 
     return res

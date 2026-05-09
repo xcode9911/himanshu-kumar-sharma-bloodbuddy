@@ -155,8 +155,10 @@ const sendEmailWithFallback = async (
   // Provide actionable hint for common Brevo error (unauthorized IP)
   const msg = lastError?.message || 'Unknown error';
   if (/unrecognised IP address|Unauthorized IP|525 5\.7\.1|unauthorized/i.test(msg)) {
+    const ipMatch = msg.match(/unrecognised IP address\s+([0-9]{1,3}(?:\.[0-9]{1,3}){3})/i);
+    const ipText = ipMatch?.[1] ? ` (${ipMatch[1]})` : '';
     throw new Error(
-      `Failed to send email: ${msg}. This often means Brevo SMTP rejected your server IP. Add your server's outbound IP to your Brevo (Sendinblue) SMTP relay allowed IPs, or use Brevo Transactional API / API key instead.`
+      `Failed to send email: ${msg}. Brevo is blocking requests from an unrecognised server IP${ipText}. Fix: in Brevo go to https://app.brevo.com/security/authorised_ips and add/allowlist your server IP (or disable IP restriction).`
     );
   }
 
@@ -191,8 +193,8 @@ export const sendOTPEmail = async (email: string, otpCode: string, fullName: str
   try {
     await sendEmailWithFallback(email, 'BloodBuddy - Email Verification OTP', html);
   } catch (error) {
-    console.error('Error sending OTP email:', error);
-    throw new Error('Failed to send OTP email via Nodemailer and Brevo SMTP');
+    console.error('Error sending OTP email:', (error as Error)?.message || error);
+    throw error;
   }
 };
 
@@ -222,8 +224,8 @@ export const sendPasswordResetOTPEmail = async (
   try {
     await sendEmailWithFallback(email, 'BloodBuddy - Password Reset OTP', html);
   } catch (error) {
-    console.error('Error sending password reset OTP email:', error);
-    throw new Error('Failed to send password reset OTP email via Nodemailer and Brevo SMTP');
+    console.error('Error sending password reset OTP email:', (error as Error)?.message || error);
+    throw error;
   }
 };
 
