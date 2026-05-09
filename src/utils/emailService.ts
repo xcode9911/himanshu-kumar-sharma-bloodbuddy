@@ -76,8 +76,18 @@ const sendViaBrevoApi = async (to: string, subject: string, html: string, from: 
 
   const url = 'https://api.brevo.com/v3/smtp/email';
 
-  const resp = await axios.post(url, payload, { headers, timeout: 15000 });
-  return resp.data;
+  try {
+    const resp = await axios.post(url, payload, { headers, timeout: 15000 });
+    return resp.data;
+  } catch (error: any) {
+    const status = error?.response?.status;
+    const data = error?.response?.data;
+    const details = typeof data === 'string' ? data : JSON.stringify(data);
+    const message = status
+      ? `Brevo API request failed with status ${status}${details ? `: ${details}` : ''}`
+      : `Brevo API request failed${error?.message ? `: ${error.message}` : ''}`;
+    throw new Error(message);
+  }
 };
 
 // Initialize Resend
@@ -144,13 +154,18 @@ const sendEmailWithFallback = async (
   // Both Nodemailer and Brevo failed
   // Provide actionable hint for common Brevo error (unauthorized IP)
   const msg = lastError?.message || 'Unknown error';
+  if (/status 401|Unauthorized|invalid api key|api key/i.test(msg)) {
+    throw new Error(
+      `Failed to send email: ${msg}. Brevo rejected the API key or the key is not valid for transactional email. Check that BREVO_API_KEY is the transactional API key from the same Brevo account, not an SMTP password, and that the key is enabled.`,
+    );
+  }
   if (/Unauthorized IP|525 5\.7\.1|Unauthorized/.test(msg)) {
     throw new Error(
       `Failed to send email: ${msg}. This often means Brevo SMTP rejected your server IP. Add your server's outbound IP to your Brevo (Sendinblue) SMTP relay allowed IPs, or use Brevo Transactional API / API key instead.`
     );
   }
 
-  throw new Error(`Failed to send email to ${to} via Nodemailer and Brevo SMTP. Last error: ${msg}`);
+  throw new Error(`Failed to send email to ${to} via Nodemailer, Brevo SMTP, and Brevo API. Last error: ${msg}`);
 };
 
 // Send OTP email
