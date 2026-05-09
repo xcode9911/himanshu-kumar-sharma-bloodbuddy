@@ -4,6 +4,10 @@ import { Resend } from 'resend';
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const BREVO_SMTP_HOST = process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com';
+const BREVO_SMTP_PORT = Number(process.env.BREVO_SMTP_PORT || 587);
+const BREVO_SMTP_USER = process.env.BREVO_SMTP_USER;
+const BREVO_SMTP_PASS = process.env.BREVO_SMTP_PASS;
 
 // Initialize Nodemailer transporter
 let nodemailerTransporter: nodemailer.Transporter | null = null;
@@ -18,6 +22,23 @@ if (SMTP_USER && SMTP_PASS) {
   console.log('✓ Nodemailer (Gmail) initialized as primary email service');
 } else {
   console.warn('⚠ SMTP credentials not configured. Resend will be used as primary.');
+}
+
+// Initialize Brevo SMTP transporter (fallback for Nodemailer failures)
+let brevoTransporter: nodemailer.Transporter | null = null;
+if (BREVO_SMTP_USER && BREVO_SMTP_PASS) {
+  brevoTransporter = nodemailer.createTransport({
+    host: BREVO_SMTP_HOST,
+    port: BREVO_SMTP_PORT,
+    secure: false,
+    auth: {
+      user: BREVO_SMTP_USER,
+      pass: BREVO_SMTP_PASS,
+    },
+  });
+  console.log('✓ Brevo SMTP transporter initialized as secondary email service');
+} else {
+  console.warn('⚠ Brevo SMTP credentials not configured. Will skip Brevo fallback.');
 }
 
 // Initialize Resend
@@ -53,6 +74,24 @@ const sendEmailWithFallback = async (
     } catch (error) {
       lastError = error as Error;
       console.error(`✗ [Nodemailer] Failed to send email: ${lastError.message}`);
+    }
+  }
+
+  // Try Brevo SMTP transporter next (if configured)
+  if (brevoTransporter) {
+    try {
+      console.log(`[Secondary] Attempting to send email via Brevo SMTP to ${to}`);
+      await brevoTransporter.sendMail({
+        from: BREVO_SMTP_USER || from,
+        to,
+        subject,
+        html,
+      });
+      console.log(`✓ [Brevo SMTP] Email sent successfully to ${to}`);
+      return;
+    } catch (error) {
+      lastError = error as Error;
+      console.error(`✗ [Brevo SMTP] Failed to send email: ${lastError.message}`);
     }
   }
 
