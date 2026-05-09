@@ -1,9 +1,7 @@
 import nodemailer from 'nodemailer';
-import { Resend } from 'resend';
 
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const BREVO_SMTP_HOST = process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com';
 const BREVO_SMTP_PORT = Number(process.env.BREVO_SMTP_PORT || 587);
 const BREVO_SMTP_USER = process.env.BREVO_SMTP_USER;
@@ -31,9 +29,17 @@ if (BREVO_SMTP_USER && BREVO_SMTP_PASS) {
     host: BREVO_SMTP_HOST,
     port: BREVO_SMTP_PORT,
     secure: false,
+    requireTLS: true,
     auth: {
       user: BREVO_SMTP_USER,
       pass: BREVO_SMTP_PASS,
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
+    tls: {
+      // Allow self-signed for environments that need it; set to true in production if desired
+      rejectUnauthorized: false,
     },
   });
   console.log('✓ Brevo SMTP transporter initialized as secondary email service');
@@ -42,13 +48,7 @@ if (BREVO_SMTP_USER && BREVO_SMTP_PASS) {
 }
 
 // Initialize Resend
-let resendClient: Resend | null = null;
-if (RESEND_API_KEY) {
-  resendClient = new Resend(RESEND_API_KEY);
-  console.log('✓ Resend initialized as fallback email service');
-} else {
-  console.warn('⚠ RESEND_API_KEY not configured. Fallback service unavailable.');
-}
+// Resend has been removed — using Nodemailer primary and Brevo SMTP fallback only.
 
 // Email sending utility with fallback logic
 const sendEmailWithFallback = async (
@@ -95,28 +95,16 @@ const sendEmailWithFallback = async (
     }
   }
 
-  // Fallback to Resend
-  if (resendClient) {
-    try {
-      console.log(`[Fallback] Attempting to send email via Resend to ${to}`);
-      await resendClient.emails.send({
-        from: SMTP_USER || 'noreply@bloodbuddy.com',
-        to,
-        subject,
-        html,
-      });
-      console.log(`✓ [Resend] Email sent successfully to ${to}`);
-      return;
-    } catch (error) {
-      lastError = error as Error;
-      console.error(`✗ [Resend] Failed to send email: ${lastError.message}`);
-    }
+  // Both Nodemailer and Brevo failed
+  // Provide actionable hint for common Brevo error (unauthorized IP)
+  const msg = lastError?.message || 'Unknown error';
+  if (/Unauthorized IP|525 5\.7\.1|Unauthorized/.test(msg)) {
+    throw new Error(
+      `Failed to send email: ${msg}. This often means Brevo SMTP rejected your server IP. Add your server's outbound IP to your Brevo (Sendinblue) SMTP relay allowed IPs, or use Brevo Transactional API / API key instead.`
+    );
   }
 
-  // Both services failed
-  throw new Error(
-    `Failed to send email to ${to} via both Nodemailer and Resend. Last error: ${lastError?.message || 'Unknown error'}`
-  );
+  throw new Error(`Failed to send email to ${to} via Nodemailer and Brevo SMTP. Last error: ${msg}`);
 };
 
 // Send OTP email
