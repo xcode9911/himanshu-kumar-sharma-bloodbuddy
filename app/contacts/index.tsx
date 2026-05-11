@@ -570,44 +570,45 @@ export default function ContactsScreen({
             colors={["#D11B31"]}
           />
         }
+        ListFooterComponent={() =>
+          showPagination ? (
+            <View
+              style={[
+                styles.paginationContainer,
+                !hideNavigation && { marginBottom: verticalScale(86) },
+              ]}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.paginationButton,
+                  contactsPage <= 1 && styles.paginationButtonDisabled,
+                ]}
+                onPress={handlePreviousPage}
+                disabled={contactsPage <= 1}
+              >
+                <Ionicons name="chevron-back" size={18} color="#D11B31" />
+                <Text style={styles.paginationButtonText}>Previous</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.paginationInfo}>
+                Page {contactsPage} of {totalPages}
+              </Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.paginationButton,
+                  contactsPage >= totalPages && styles.paginationButtonDisabled,
+                ]}
+                onPress={handleNextPage}
+                disabled={contactsPage >= totalPages}
+              >
+                <Text style={styles.paginationButtonText}>Next</Text>
+                <Ionicons name="chevron-forward" size={18} color="#D11B31" />
+              </TouchableOpacity>
+            </View>
+          ) : null
+        }
       />
-
-      {showPagination && (
-        <View
-          style={[
-            styles.paginationContainer,
-            !hideNavigation && { marginBottom: verticalScale(86) },
-          ]}
-        >
-          <TouchableOpacity
-            style={[
-              styles.paginationButton,
-              contactsPage <= 1 && styles.paginationButtonDisabled,
-            ]}
-            onPress={handlePreviousPage}
-            disabled={contactsPage <= 1}
-          >
-            <Ionicons name="chevron-back" size={18} color="#D11B31" />
-            <Text style={styles.paginationButtonText}>Previous</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.paginationInfo}>
-            Page {contactsPage} of {totalPages}
-          </Text>
-
-          <TouchableOpacity
-            style={[
-              styles.paginationButton,
-              contactsPage >= totalPages && styles.paginationButtonDisabled,
-            ]}
-            onPress={handleNextPage}
-            disabled={contactsPage >= totalPages}
-          >
-            <Text style={styles.paginationButtonText}>Next</Text>
-            <Ionicons name="chevron-forward" size={18} color="#D11B31" />
-          </TouchableOpacity>
-        </View>
-      )}
 
       <ProfileDetailsModal />
 

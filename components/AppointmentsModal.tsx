@@ -105,7 +105,7 @@ export default function AppointmentsModal({ visible, onClose, bookings, onPay }:
                                         >
                                             <Text style={styles.payButtonText}>
                                                 {/* @ts-ignore */}
-                                                {booking.paymentStatus === 'Paid' ? 'Paid' : 'Pay Now'}
+                                                    {String(booking.paymentStatus).toLowerCase() === 'paid' ? 'Paid' : 'Pay Now'}
                                             </Text>
                                         </TouchableOpacity>
                                     )}

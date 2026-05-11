@@ -791,7 +791,7 @@ export default function EditProfileScreen() {
             {profileImage ? (
               <View style={styles.profileImageWrapper}>
                 <Image
-                  source={{ uri: profileImage }}
+                  source={{ uri: getCleanImageUrl(profileImage) || "" }}
                   style={styles.profileImage}
                 />
                 <View style={styles.cameraIconOverlay}>

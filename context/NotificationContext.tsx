@@ -2,11 +2,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import React, {
-    createContext,
-    useContext,
-    useEffect,
-    useRef,
-    useState,
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
 } from "react";
 import { Alert, Platform } from "react-native";
 import { API_ENDPOINTS } from "../config/api";
@@ -249,7 +249,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     );
   };
 
+  const canRegisterPushToken = () => {
+    if (Platform.OS !== "ios") {
+      return true;
+    }
+
+    return Boolean(Constants.isDevice);
+  };
+
   const registerExpoPushToken = async () => {
+    if (!canRegisterPushToken()) {
+      return;
+    }
+
     try {
       const projectId = getProjectId();
       const tokenResponse = projectId
@@ -266,6 +278,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const requestNotificationPermissionOnce = async () => {
     if (Platform.OS === "web" || isDetoxTest()) {
+      return;
+    }
+
+    if (!canRegisterPushToken()) {
       return;
     }
 
@@ -297,6 +313,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const syncPushTokenIfGranted = async () => {
     if (Platform.OS === "web" || isDetoxTest()) {
+      return;
+    }
+
+    if (!canRegisterPushToken()) {
       return;
     }
 
@@ -332,15 +352,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
           body: message,
           sound: "default",
           data,
-          channelId: options?.urgent ? "emergency" : "default",
           priority: options?.urgent
             ? Notifications.AndroidNotificationPriority.MAX
             : Notifications.AndroidNotificationPriority.HIGH,
-          interruptionLevel: options?.urgent
-            ? Notifications.IosInterruptionLevel.TIME_SENSITIVE
-            : Notifications.IosInterruptionLevel.ACTIVE,
+          interruptionLevel: options?.urgent ? "timeSensitive" : "active",
         },
-        trigger: null,
+        trigger:
+          Platform.OS === "android"
+            ? {
+                channelId: options?.urgent ? "emergency" : "default",
+              }
+            : null,
       });
     } catch (error) {
       console.log("Failed to present local notification:", error);

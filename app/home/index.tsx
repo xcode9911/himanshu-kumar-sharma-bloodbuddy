@@ -698,7 +698,9 @@ export default function Home() {
                     <View style={{ marginBottom: verticalScale(4) }}>
                       {orgProfileImage ? (
                         <Image
-                          source={{ uri: orgProfileImage }}
+                          source={{
+                            uri: getCleanImageUrl(orgProfileImage) || "",
+                          }}
                           style={{
                             width: moderateScale(32),
                             height: moderateScale(32),
@@ -799,7 +801,9 @@ export default function Home() {
                       >
                         {bubble.profileImage ? (
                           <Image
-                            source={{ uri: bubble.profileImage }}
+                            source={{
+                              uri: getCleanImageUrl(bubble.profileImage) || "",
+                            }}
                             style={{
                               width: "100%",
                               height: "100%",
@@ -1187,13 +1191,15 @@ export default function Home() {
                               style={styles.khaltiLogo}
                             />
                             <Text style={[styles.payButtonText]}>
-                              {booking.paymentStatus === "Paid"
+                              {String(booking.paymentStatus).toLowerCase() ===
+                              "paid"
                                 ? "Paid"
                                 : "Pay Now"}
                             </Text>
                           </TouchableOpacity>
 
-                          {booking.paymentStatus !== "Paid" && (
+                          {String(booking.paymentStatus).toLowerCase() !==
+                            "paid" && (
                             <TouchableOpacity
                               style={[styles.esewaButton]}
                               onPress={() => handleEsewaPay(booking)}

@@ -3,27 +3,30 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Navigation from "../../components/Navigation";
 import { API_ENDPOINTS } from "../../config/api";
 import { getUserFriendlyError } from "../../utils/errorMessages";
-import { moderateScale, scale, verticalScale } from "../../utils/responsive";
 import { getCleanImageUrl } from "../../utils/image";
+import { moderateScale, scale, verticalScale } from "../../utils/responsive";
 
 interface Campaign {
   id: string;
   title: string;
   description: string;
   location: string;
+  targetAttendees?: string | number;
+  targetUnits?: string | number;
   latitude?: string | number;
   longitude?: string | number;
   startDate: string;
@@ -67,6 +70,11 @@ interface CampaignInvitation {
 export default function CampaignListScreen() {
   const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [campaignImpact, setCampaignImpact] = useState({
+    totalAttendees: 0,
+    totalUnits: 0,
+  });
+  const [impactLoading, setImpactLoading] = useState(false);
   const [campaignInvitations, setCampaignInvitations] = useState<
     CampaignInvitation[]
   >([]);
@@ -77,6 +85,7 @@ export default function CampaignListScreen() {
   >(null);
   const [userRole, setUserRole] = useState("donor");
   const [activeTab, setActiveTab] = useState<"current" | "previous">("current");
+  const [showKpiModal, setShowKpiModal] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -122,10 +131,20 @@ export default function CampaignListScreen() {
 
       if (response && response.ok) {
         const data = await response.json();
-        setCampaigns(data.campaigns || []);
+        const campaignList = Array.isArray(data?.campaigns)
+          ? data.campaigns
+          : [];
+        setCampaigns(campaignList);
+
+        if (role === "organization") {
+          fetchCampaignImpact(campaignList, token || "");
+        } else {
+          setCampaignImpact({ totalAttendees: 0, totalUnits: 0 });
+        }
       } else {
         console.log("Failed to fetch campaigns");
         if (campaigns.length === 0) setCampaigns([]);
+        setCampaignImpact({ totalAttendees: 0, totalUnits: 0 });
       }
 
       if (role === "organization") {
@@ -158,6 +177,53 @@ export default function CampaignListScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const fetchCampaignImpact = async (
+    campaignList: Campaign[],
+    token: string,
+  ) => {
+    if (!campaignList.length) {
+      setCampaignImpact({ totalAttendees: 0, totalUnits: 0 });
+      return;
+    }
+
+    try {
+      setImpactLoading(true);
+      const reportResponses = await Promise.allSettled(
+        campaignList.map((campaign) =>
+          fetch(API_ENDPOINTS.GET_CAMPAIGN_REPORT(campaign.id), {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }),
+        ),
+      );
+
+      let totalAttendees = 0;
+      let totalUnits = 0;
+
+      for (const reportResponse of reportResponses) {
+        if (reportResponse.status !== "fulfilled" || !reportResponse.value.ok) {
+          continue;
+        }
+
+        const data = await reportResponse.value.json().catch(() => ({}));
+        const report = data?.report || data;
+        totalAttendees += Number(report?.totalAttendees || 0);
+        totalUnits += Number(report?.totalUnits || 0);
+      }
+
+      setCampaignImpact({
+        totalAttendees,
+        totalUnits,
+      });
+    } catch (error) {
+      console.log("Fetch campaign impact error:", error);
+      setCampaignImpact({ totalAttendees: 0, totalUnits: 0 });
+    } finally {
+      setImpactLoading(false);
     }
   };
 
@@ -302,7 +368,9 @@ export default function CampaignListScreen() {
       >
         <Image
           source={{
-            uri: getCleanImageUrl(item.posterUrl) || "https://placehold.co/600x400/png?text=Campaign",
+            uri:
+              getCleanImageUrl(item.posterUrl) ||
+              "https://placehold.co/600x400/png?text=Campaign",
           }}
           style={styles.cardImage}
         />
@@ -335,6 +403,10 @@ export default function CampaignListScreen() {
                         title: item.title,
                         description: item.description,
                         location: item.location,
+                        targetAttendees: item.targetAttendees as
+                          | string
+                          | undefined,
+                        targetUnits: item.targetUnits as string | undefined,
                         latitude: item.latitude as string | undefined, // from updated backend schema
                         longitude: item.longitude as string | undefined,
                         startDate: item.startDate,
@@ -568,8 +640,44 @@ export default function CampaignListScreen() {
   const now = new Date();
   const activeCampaigns = campaigns.filter((c) => new Date(c.endDate) >= now);
   const previousCampaigns = campaigns.filter((c) => new Date(c.endDate) < now);
+  const campaignsWithCollaborators = campaigns.filter(
+    (campaign) => getCollaborators(campaign).length > 0,
+  ).length;
+  const totalTargetAttendees = campaigns.reduce(
+    (sum, campaign) => sum + Number(campaign.targetAttendees || 0),
+    0,
+  );
+  const totalTargetUnits = campaigns.reduce(
+    (sum, campaign) => sum + Number(campaign.targetUnits || 0),
+    0,
+  );
+  const attendeeProgressPercent =
+    totalTargetAttendees > 0
+      ? Math.min(
+          100,
+          Math.round(
+            (campaignImpact.totalAttendees / totalTargetAttendees) * 100,
+          ),
+        )
+      : 0;
+  const unitsProgressPercent =
+    totalTargetUnits > 0
+      ? Math.min(
+          100,
+          Math.round((campaignImpact.totalUnits / totalTargetUnits) * 100),
+        )
+      : 0;
   const filteredCampaigns =
     activeTab === "current" ? activeCampaigns : previousCampaigns;
+  const formatCompactNumber = (value: number) => {
+    if (value >= 1000000) {
+      return `${(value / 1000000).toFixed(1).replace(/\.0$/, "")}M`;
+    }
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(1).replace(/\.0$/, "")}K`;
+    }
+    return String(value);
+  };
 
   return (
     <View style={styles.container}>
@@ -594,13 +702,26 @@ export default function CampaignListScreen() {
         <View
           style={{ flexDirection: "row", alignItems: "center", gap: scale(8) }}
         >
+          <TouchableOpacity
+            style={styles.kpiHeaderBtn}
+            onPress={() => setShowKpiModal(true)}
+          >
+            <Ionicons
+              name="stats-chart"
+              size={moderateScale(28)}
+              color="#D11B31"
+            />
+          </TouchableOpacity>
           {userRole !== "organization" && (
             <TouchableOpacity
               style={styles.scanHeaderBtn}
               onPress={() => router.push("/campaign/scan")}
             >
-              <Ionicons name="qr-code-outline" size={20} color="#D11B31" />
-              <Text style={styles.scanHeaderBtnText}>Scan</Text>
+              <Ionicons
+                name="qr-code-outline"
+                size={moderateScale(28)}
+                color="#D11B31"
+              />
             </TouchableOpacity>
           )}
           {userRole === "organization" && (
@@ -613,6 +734,109 @@ export default function CampaignListScreen() {
           )}
         </View>
       </View>
+
+      <Modal
+        visible={showKpiModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowKpiModal(false)}
+      >
+        <View style={styles.kpiModalOverlay}>
+          <View style={styles.kpiModalContent}>
+            <View style={styles.kpiModalHeader}>
+              <View>
+                <Text style={styles.kpiModalTitle}>KPI Dashboard</Text>
+                <Text style={styles.kpiModalSubtitle}>
+                  Campaign performance at a glance
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.kpiModalCloseBtn}
+                onPress={() => setShowKpiModal(false)}
+              >
+                <Ionicons name="close" size={20} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.kpiWrapper}>
+              <View style={styles.kpiGrid}>
+                <View style={[styles.kpiCard, styles.kpiCardRed]}>
+                  <Text style={styles.kpiLabel}>Live</Text>
+                  <Text style={styles.kpiValue}>{activeCampaigns.length}</Text>
+                </View>
+
+                <View style={[styles.kpiCard, styles.kpiCardBlue]}>
+                  <Text style={styles.kpiLabel}>Completed</Text>
+                  <Text style={styles.kpiValue}>
+                    {previousCampaigns.length}
+                  </Text>
+                </View>
+
+                <View style={[styles.kpiCard, styles.kpiCardPurple]}>
+                  <Text style={styles.kpiLabel}>Collaborations</Text>
+                  <Text style={styles.kpiValue}>
+                    {campaignsWithCollaborators}
+                  </Text>
+                </View>
+
+                {userRole === "organization" && (
+                  <>
+                    <View style={[styles.kpiCard, styles.kpiCardGreen]}>
+                      <Text style={styles.kpiLabel}>Attendees</Text>
+                      <Text style={styles.kpiValue}>
+                        {impactLoading
+                          ? "..."
+                          : formatCompactNumber(campaignImpact.totalAttendees)}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.kpiCard, styles.kpiCardTeal]}>
+                      <Text style={styles.kpiLabel}>Target Donors</Text>
+                      <Text style={styles.kpiValue}>
+                        {formatCompactNumber(totalTargetAttendees)}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.kpiCard, styles.kpiCardOrange]}>
+                      <Text style={styles.kpiLabel}>Units Collected</Text>
+                      <Text style={styles.kpiValue}>
+                        {impactLoading
+                          ? "..."
+                          : formatCompactNumber(campaignImpact.totalUnits)}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.kpiCard, styles.kpiCardSky]}>
+                      <Text style={styles.kpiLabel}>Target Units</Text>
+                      <Text style={styles.kpiValue}>
+                        {formatCompactNumber(totalTargetUnits)}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.kpiCard, styles.kpiCardIndigo]}>
+                      <Text style={styles.kpiLabel}>Donor Goal Hit</Text>
+                      <Text style={styles.kpiValue}>
+                        {totalTargetAttendees > 0
+                          ? `${attendeeProgressPercent}%`
+                          : "N/A"}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.kpiCard, styles.kpiCardSlate]}>
+                      <Text style={styles.kpiLabel}>Unit Goal Hit</Text>
+                      <Text style={styles.kpiValue}>
+                        {totalTargetUnits > 0
+                          ? `${unitsProgressPercent}%`
+                          : "N/A"}
+                      </Text>
+                    </View>
+                  </>
+                )}
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <View style={styles.categoryToggleWrapper}>
         <View style={styles.categoryToggleContainer}>
@@ -806,20 +1030,29 @@ const styles = StyleSheet.create({
     marginTop: verticalScale(8),
   },
   scanHeaderBtn: {
-    flexDirection: "row",
+    width: moderateScale(50),
+    height: moderateScale(50),
+    borderRadius: moderateScale(26),
     alignItems: "center",
-    backgroundColor: "#FFF",
-    paddingHorizontal: scale(10),
-    paddingVertical: verticalScale(6),
-    borderRadius: moderateScale(10),
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#D11B31",
-    gap: scale(4),
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FFF1F2",
   },
   scanHeaderBtnText: {
     fontSize: moderateScale(13),
     fontWeight: "700",
     color: "#D11B31",
+  },
+  kpiHeaderBtn: {
+    width: moderateScale(50),
+    height: moderateScale(50),
+    borderRadius: moderateScale(26),
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FFF1F2",
   },
   orgCreateBtn: {
     backgroundColor: "#D11B31",
@@ -993,6 +1226,100 @@ const styles = StyleSheet.create({
   activeCategoryTabText: {
     color: "#D11B31",
     fontWeight: "600",
+  },
+  kpiWrapper: {
+    paddingTop: verticalScale(12),
+    paddingBottom: verticalScale(10),
+    backgroundColor: "#FFF",
+    paddingHorizontal: scale(16),
+  },
+  kpiGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: scale(10),
+  },
+  kpiCard: {
+    width: "31%",
+    borderRadius: moderateScale(12),
+    paddingHorizontal: scale(12),
+    paddingVertical: verticalScale(10),
+  },
+  kpiCardRed: {
+    backgroundColor: "#FEE2E2",
+  },
+  kpiCardBlue: {
+    backgroundColor: "#DBEAFE",
+  },
+  kpiCardPurple: {
+    backgroundColor: "#EDE9FE",
+  },
+  kpiCardGreen: {
+    backgroundColor: "#DCFCE7",
+  },
+  kpiCardTeal: {
+    backgroundColor: "#CCFBF1",
+  },
+  kpiCardOrange: {
+    backgroundColor: "#FFEDD5",
+  },
+  kpiCardSky: {
+    backgroundColor: "#E0F2FE",
+  },
+  kpiCardIndigo: {
+    backgroundColor: "#E0E7FF",
+  },
+  kpiCardSlate: {
+    backgroundColor: "#E2E8F0",
+  },
+  kpiLabel: {
+    fontSize: moderateScale(12),
+    color: "#374151",
+    fontWeight: "600",
+    marginBottom: verticalScale(6),
+  },
+  kpiValue: {
+    fontSize: moderateScale(18),
+    color: "#111827",
+    fontWeight: "800",
+  },
+  kpiModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "flex-end",
+  },
+  kpiModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: moderateScale(20),
+    borderTopRightRadius: moderateScale(20),
+    paddingBottom: verticalScale(28),
+    minHeight: "52%",
+  },
+  kpiModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: scale(16),
+    paddingTop: verticalScale(16),
+    paddingBottom: verticalScale(8),
+  },
+  kpiModalTitle: {
+    fontSize: moderateScale(18),
+    fontWeight: "800",
+    color: "#111827",
+  },
+  kpiModalSubtitle: {
+    fontSize: moderateScale(12),
+    color: "#6B7280",
+    marginTop: verticalScale(3),
+  },
+  kpiModalCloseBtn: {
+    width: moderateScale(34),
+    height: moderateScale(34),
+    borderRadius: moderateScale(17),
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
   },
   completedBadge: {
     position: "absolute",

@@ -594,44 +594,47 @@ export default function OrganizationScreen({
             colors={["#D11B31"]}
           />
         }
+        ListFooterComponent={() =>
+          showPagination ? (
+            <View
+              style={[
+                styles.paginationContainer,
+                !hideNavigation && { marginBottom: verticalScale(86) },
+              ]}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.paginationButton,
+                  currentPage <= 1 && styles.paginationButtonDisabled,
+                ]}
+                onPress={handlePreviousPage}
+                disabled={currentPage <= 1}
+              >
+                <Ionicons name="chevron-back" size={18} color="#D11B31" />
+                <Text style={styles.paginationButtonText}>Previous</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.paginationInfo}>
+                Page {currentPage} of {totalPages}
+              </Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.paginationButton,
+                  currentPage >= totalPages && styles.paginationButtonDisabled,
+                ]}
+                onPress={handleNextPage}
+                disabled={currentPage >= totalPages}
+              >
+                <Text style={styles.paginationButtonText}>Next</Text>
+                <Ionicons name="chevron-forward" size={18} color="#D11B31" />
+              </TouchableOpacity>
+            </View>
+          ) : null
+        }
       />
 
-      {showPagination && (
-        <View
-          style={[
-            styles.paginationContainer,
-            !hideNavigation && { marginBottom: verticalScale(86) },
-          ]}
-        >
-          <TouchableOpacity
-            style={[
-              styles.paginationButton,
-              currentPage <= 1 && styles.paginationButtonDisabled,
-            ]}
-            onPress={handlePreviousPage}
-            disabled={currentPage <= 1}
-          >
-            <Ionicons name="chevron-back" size={18} color="#D11B31" />
-            <Text style={styles.paginationButtonText}>Previous</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.paginationInfo}>
-            Page {currentPage} of {totalPages}
-          </Text>
-
-          <TouchableOpacity
-            style={[
-              styles.paginationButton,
-              currentPage >= totalPages && styles.paginationButtonDisabled,
-            ]}
-            onPress={handleNextPage}
-            disabled={currentPage >= totalPages}
-          >
-            <Text style={styles.paginationButtonText}>Next</Text>
-            <Ionicons name="chevron-forward" size={18} color="#D11B31" />
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* Pagination moved into FlatList footer to appear after the second card */}
 
       {/* Navigation Bar - only show if not hidden */}
       {!hideNavigation && (

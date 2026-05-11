@@ -83,6 +83,12 @@ export default function CreateCampaignScreen() {
   const [description, setDescription] = useState(
     (params.description as string) || "",
   );
+  const [targetAttendees, setTargetAttendees] = useState(
+    (params.targetAttendees as string) || "",
+  );
+  const [targetUnits, setTargetUnits] = useState(
+    (params.targetUnits as string) || "",
+  );
   const [location, setLocation] = useState((params.location as string) || "");
 
   const [startDate, setStartDate] = useState(
@@ -142,6 +148,12 @@ export default function CreateCampaignScreen() {
   const selectedCollaborators = inviteOrganizations.filter((organization) =>
     selectedCollaboratorIds.includes(organization.id),
   );
+  const parsedTargetAttendees = Number(targetAttendees || 0);
+  const parsedTargetUnits = Number(targetUnits || 0);
+  const unitsPerAttendeeTarget =
+    parsedTargetAttendees > 0
+      ? (parsedTargetUnits / parsedTargetAttendees).toFixed(2)
+      : "0.00";
 
   const campaignMapAppleMarkers = useMemo<AppleMapMarker[]>(() => {
     if (!campaignCoordinates) {
@@ -525,6 +537,28 @@ export default function CreateCampaignScreen() {
       return;
     }
 
+    if (
+      targetAttendees &&
+      (!Number.isInteger(parsedTargetAttendees) || parsedTargetAttendees <= 0)
+    ) {
+      Alert.alert(
+        "Invalid KPI target",
+        "Target attendees must be a positive whole number.",
+      );
+      return;
+    }
+
+    if (
+      targetUnits &&
+      (!Number.isInteger(parsedTargetUnits) || parsedTargetUnits <= 0)
+    ) {
+      Alert.alert(
+        "Invalid KPI target",
+        "Target units must be a positive whole number.",
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("authToken");
@@ -548,6 +582,12 @@ export default function CreateCampaignScreen() {
       formData.append("title", title);
       formData.append("description", description);
       formData.append("location", location.replace(/\s*\([^)]+\)$/, "").trim());
+      if (targetAttendees) {
+        formData.append("targetAttendees", String(parsedTargetAttendees));
+      }
+      if (targetUnits) {
+        formData.append("targetUnits", String(parsedTargetUnits));
+      }
       if (campaignCoordinates) {
         formData.append("latitude", campaignCoordinates.latitude.toString());
         formData.append("longitude", campaignCoordinates.longitude.toString());
@@ -867,6 +907,58 @@ export default function CreateCampaignScreen() {
           textAlignVertical="top"
           placeholderTextColor="#9CA3AF"
         />
+
+        <View style={styles.kpiSection}>
+          <Text style={styles.label}>KPI Targets (Optional)</Text>
+          <Text style={styles.kpiHelpText}>
+            Set measurable goals to evaluate campaign success after completion.
+          </Text>
+
+          <View style={styles.row}>
+            <View style={styles.halfWidth}>
+              <Text style={styles.kpiLabel}>Target Attendees</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 120"
+                value={targetAttendees}
+                onChangeText={(value) =>
+                  setTargetAttendees(value.replace(/[^0-9]/g, ""))
+                }
+                keyboardType="number-pad"
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+
+            <View style={styles.halfWidth}>
+              <Text style={styles.kpiLabel}>Target Units</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 80"
+                value={targetUnits}
+                onChangeText={(value) =>
+                  setTargetUnits(value.replace(/[^0-9]/g, ""))
+                }
+                keyboardType="number-pad"
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+          </View>
+
+          {(targetAttendees || targetUnits) && (
+            <View style={styles.kpiPreviewCard}>
+              <Text style={styles.kpiPreviewTitle}>KPI Preview</Text>
+              <Text style={styles.kpiPreviewText}>
+                Planned donors: {parsedTargetAttendees || 0}
+              </Text>
+              <Text style={styles.kpiPreviewText}>
+                Planned units: {parsedTargetUnits || 0}
+              </Text>
+              <Text style={styles.kpiPreviewText}>
+                Planned units per donor: {unitsPerAttendeeTarget}
+              </Text>
+            </View>
+          )}
+        </View>
 
         <Text style={styles.label}>Location</Text>
         <TouchableOpacity
@@ -1372,6 +1464,41 @@ const styles = StyleSheet.create({
   },
   textArea: {
     height: verticalScale(100),
+  },
+  kpiSection: {
+    marginBottom: verticalScale(4),
+  },
+  kpiHelpText: {
+    fontSize: moderateScale(12),
+    color: "#6B7280",
+    marginBottom: verticalScale(10),
+  },
+  kpiLabel: {
+    fontSize: moderateScale(12),
+    color: "#374151",
+    fontWeight: "600",
+    marginBottom: verticalScale(6),
+  },
+  kpiPreviewCard: {
+    backgroundColor: "#EFF6FF",
+    borderRadius: moderateScale(10),
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    paddingHorizontal: scale(12),
+    paddingVertical: verticalScale(10),
+    marginTop: verticalScale(-6),
+    marginBottom: verticalScale(12),
+  },
+  kpiPreviewTitle: {
+    fontSize: moderateScale(13),
+    fontWeight: "700",
+    color: "#1E3A8A",
+    marginBottom: verticalScale(6),
+  },
+  kpiPreviewText: {
+    fontSize: moderateScale(12),
+    color: "#1F2937",
+    marginBottom: verticalScale(2),
   },
   collaborationSection: {
     marginBottom: verticalScale(4),
