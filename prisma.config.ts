@@ -1,19 +1,9 @@
-import type { PrismaConfig } from "prisma/config";
+import "dotenv/config";
+import { defineConfig, env } from "prisma/config";
 
-if (!process.env.DATABASE_URL) {
-  try {
-    const dotenv = await import("dotenv");
-    dotenv.config();
-  } catch {
-    // Ignore if dotenv fails
-  }
-}
-
-const config: PrismaConfig = {
+export default defineConfig({
   schema: "prisma/schema.prisma",
   datasource: {
-    url: process.env.DATABASE_URL,
+    url: env("DIRECT_URL"),
   },
-};
-
-export default config;
+});
