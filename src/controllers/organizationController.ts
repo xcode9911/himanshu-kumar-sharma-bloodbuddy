@@ -128,6 +128,17 @@ export const addOrUpdateInventory = async (req: Request, res: Response) => {
     await logInventoryChange(organizationId, bloodType, units, "Add", 0, units);
   }
 
+  // Emit real-time inventory update via socket.io
+  const io = req.app.get('socketio');
+  if (io) {
+    io.emit('inventoryUpdated', {
+      organizationId,
+      bloodType: inventory.BloodType,
+      newUnits: inventory.Units,
+      action: existingInventory ? 'Add' : 'Add',
+    });
+  }
+
   return res.status(200).json({
     message: existingInventory
       ? `Inventory updated successfully. Added ${units} units. Total: ${inventory.Units}`
@@ -336,6 +347,17 @@ export const deleteInventory = async (req: Request, res: Response) => {
     0,
   );
 
+  // Emit real-time inventory update via socket.io
+  const ioDelete = req.app.get('socketio');
+  if (ioDelete) {
+    ioDelete.emit('inventoryUpdated', {
+      organizationId,
+      bloodType: bloodTypeParam,
+      newUnits: 0,
+      action: 'Remove',
+    });
+  }
+
   return res.status(200).json({
     message: `Inventory for blood type ${bloodTypeParam} deleted successfully`,
   });
@@ -428,6 +450,17 @@ export const updateInventoryUnits = async (req: Request, res: Response) => {
     existingInventory.Units,
     units,
   );
+
+  // Emit real-time inventory update via socket.io
+  const ioUpdate = req.app.get('socketio');
+  if (ioUpdate) {
+    ioUpdate.emit('inventoryUpdated', {
+      organizationId,
+      bloodType: updatedInventory.BloodType,
+      newUnits: updatedInventory.Units,
+      action: 'Update',
+    });
+  }
 
   return res.status(200).json({
     message: "Inventory units updated successfully",
